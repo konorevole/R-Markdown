@@ -5,7 +5,7 @@ date: "August 18, 2016"
 output: html_document
 ---
 
-test git hub
+test git hub2
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
