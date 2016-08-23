@@ -31,24 +31,41 @@ nut.concs.raw <- na.omit(nut.concs.raw)
 
 ```
 
+Sets the readings that were below detection for each nutrient to 0 and recalculates ON.
+``` {r non.detect}
+
+nut.concs.raw$uM_NOx[nut.concs.raw$uM_NOx < 0.0507] <- 0
+nut.concs.raw$uM_NH3[nut.concs.raw$uM_NH3 < 0.23857] <- 0
+nut.concs.raw$uM_PO4[nut.concs.raw$uM_PO4 < 0.01967] <- 0
+nut.concs.raw$uM_TN[nut.concs.raw$uM_TN < 0.75] <- 0
+
+nut.concs.detect <- nut.concs.raw %>%
+  mutate(
+    uM_ON = (uM_TN - (uM_NOx + uM_NH3))
+    )
+
+```
+
 
 Add columns for age and habitat using functions. Set the distinguishing labels as factors and implement the preferred order.
 ``` {r order.variables}
 
-nut.concs <- add.age(nut.concs.raw)
+nut.concs <- add.age(nut.concs.detect)
 nut.concs$Age <- as.numeric(nut.concs$Age)
 nut.concs <- add.habitat(nut.concs)
 
 nut.concs$Season <- factor(nut.concs$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
-nut.concs$CoreName <- factor(nut.concs$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
+nut.concs$CoreName <- factor(nut.concs$CoreName, levels = c("In1", "In2", "LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
 nut.concs$Site <- factor(nut.concs$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
 nut.concs$Habitat <- factor(nut.concs$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
 
 ```
 
-Write csv for clean data.
+Write csv for clean data.  Also writes csv for redoing the flux & DNE calculations after "below detection" concentration results were adjusted.
 ``` {r export.clean}
 
 write.csv(nut.concs, "E:\\R Markdown\\nutrient-concs\\clean\\nut-concs-clean_all-seasons_all-sites.csv", row.names = F)
+
+write.csv(nut.concs.detect, "E:\\MS Research\\Nutrients\\nut-concs-detect-clean_all-seasons_all-sites.csv", row.names = F)
 
 ```
