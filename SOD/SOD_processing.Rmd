@@ -1,0 +1,88 @@
+---
+title: "SOD"
+author: "Kathleen Onorevole"
+date: "August 22, 2016"
+output: html_document
+---
+
+This is the processing script for the SOD data collected with the MIMS.  It reads in the raw O2 flux data, removes lost cores & aberrant MIMS readings, converts O2 flux to SOD, sets factor levels, and exports a clean csv.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages & functions needed for these analyses
+```{r libraries, include = F}
+
+library("plyr")
+library("dplyr")
+
+source("functions.R")
+
+```
+
+Read in the raw data
+``` {r read.in.data}
+
+SOD.raw <- read.csv("E:\\R Markdown\\SOD\\raw\\SOD-raw_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+```
+
+Eliminate NAs for missing cores & aberrant readings (NOAA Spring Time 1)
+``` {r cleaning.up}
+
+SOD.raw <- na.omit(SOD.raw)
+
+SOD.raw <- SOD.raw[ which(SOD.raw$Season != "Spring" | SOD.raw$Site != "NOAA" | SOD.raw$TimePt != "1"), ]
+
+```
+
+Set the distinguishing labels as factors and implementing the preferred order
+``` {r order.variables}
+
+SOD.raw$Season <- factor(SOD.raw$Season, levels = c("Summer", "Fall", "Winter", "Spring", "Summer15"))
+SOD.raw$CoreName <- factor(SOD.raw$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
+SOD.raw$Site <- factor(SOD.raw$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+
+```
+
+Add a column converting O2 flux to SOD by multiplying by -1 (SOD is inverse of O2 flux).
+
+Calculate the most basic level of relevant SOD data: the average SOD for each physical core over the course of the incubation. This is the # that will be used, without any error included, to calculate the average SOD per core name (ie LO).  It would be pseudoreplication to calculate error on the time values. Error should only be calculated for subsequent groupings of the SOD data.
+
+Add columns for age and habitat and set factor levels.
+``` {r core.calcs}
+
+SOD <- mutate(SOD.raw,
+              core.SOD = O2Flux * -1)
+
+core.SOD <- ddply(SOD, c("Season", "Site", "CoreName", "CoreNo"), summarise,
+                 SOD = mean(core.SOD))
+
+core.SOD <- add.age(core.SOD)
+core.SOD$Age <- as.numeric(core.SOD$Age)
+core.SOD <- add.habitat(core.SOD)
+
+core.SOD$Habitat <- factor(core.SOD$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+```
+
+Export the clean data to a csv.
+``` {r export.csv}
+
+write.csv(core.SOD, "E:\\R Markdown\\SOD\\clean\\SOD-by-core_all-seasons_all-sites.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the average SOD for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean SOD for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r avg.by.type}
+
+type.SOD <- ddply(core.SOD, c("Season", "Site", "CoreName"), summarise,
+                 avg_SOD = mean(SOD))
+
+write.csv(type.SOD, "E:\\R Markdown\\SOD\\clean\\SOD-by-type_all-seasons_all-sites.csv", row.names = F)
+
+```
+

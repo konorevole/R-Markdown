@@ -1,0 +1,66 @@
+---
+title: "Nutrient Flux"
+author: "Kathleen Onorevole"
+date: "August 22, 2016"
+output: html_document
+---
+
+This is the processing script for the nutrient flux data. Nutrient fluxes were calculated in an Excel spreadsheet using the same method as calculating gas fluxes. This script reads in the nutrient flux data, adds habitat and age columns, sets factor levels, and exports a clean csv.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages needed for these analyses
+```{r libraries, include = F}
+
+library("plyr")
+library("dplyr")
+
+source("functions.R")
+```
+
+Read in the raw data. Eliminate NA columns for lost cores.
+``` {r read.in.data}
+
+nutflux.raw <- read.csv("E:\\R Markdown\\nutrient-flux\\raw\\nutrient-flux-raw_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+nutflux.raw <- na.omit(nutflux.raw)
+
+```
+
+
+Add columns for age and habitat using functions. Set the distinguishing labels as factors and implementing the preferred order.
+``` {r order.variables}
+
+nutflux <- add.age(nutflux.raw)
+nutflux$Age <- as.numeric(nutflux$Age)
+nutflux <- add.habitat(nutflux)
+
+nutflux$Season <- factor(nutflux$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+nutflux$CoreName <- factor(nutflux$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
+nutflux$Site <- factor(nutflux$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+nutflux$Habitat <- factor(nutflux$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+```
+
+Write csv for clean data.
+``` {r export.data}
+
+write.csv(nutflux, "E:\\R Markdown\\nutrient-flux\\clean\\nutrient-flux-clean_all-seasons_all-sites.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the average nutrient flux for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean nutrient flux for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r avg.by.type}
+
+type.nutflux <- ddply(nutflux, c("Season", "Site", "CoreName"), summarise,
+                 avg_flux_NOx = mean(flux_Nox),
+                 avg_flux_NH3 = mean(flux_NH3))
+
+write.csv(type.nutflux, "E:\\R Markdown\\nutrient-flux\\clean\\nutrient-flux-by-type_all-seasons_all-sites.csv", row.names = F)
+
+```
+

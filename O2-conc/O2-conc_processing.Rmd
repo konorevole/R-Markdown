@@ -1,0 +1,66 @@
+---
+title: "O2 processing"
+author: "Kathleen Onorevole"
+date: "August 18, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages needed for this analysis
+```{r libraries}
+
+library("plyr")
+library("dplyr")
+
+```
+
+Read in the raw data
+```{r read.in}
+
+raw.O2concs <- read.csv("O2-conc\\raw\\O2-conc-raw_with-summer15.csv", header = T, stringsAsFactors = F)
+
+```
+
+Eliminate NAs for missing cores & aberrant readings (NOAA Spring Time 1)
+``` {r cleaning.up}
+
+raw.O2concs <- na.omit(raw.O2concs)
+
+raw.O2concs <- raw.O2concs[ which(raw.O2concs$Season != "Spring" | raw.O2concs$Site != "NOAA" | raw.O2concs$TimePt != "1"), ]
+
+```
+
+
+Set the distinguishing labels as factors and implementing the preferred order
+``` {r order.variables}
+
+raw.O2concs$Season <- factor(raw.O2concs$Season, levels = c("Summer", "Fall", "Winter", "Spring", "Summer15"))
+raw.O2concs$CoreName <- factor(raw.O2concs$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
+raw.O2concs$Site <- factor(raw.O2concs$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+
+```
+
+Calculate the most basic level of relevant O concentration data: the average O2 concentration for each physical core over the course of the incubation. This is the # that will be used, without any error included, to calculate the average flux per core name (ie LO).  It would be pseudoreplication to calculate error on the time values.  Error should only be calculated for subsequent groupings of the flux data.
+``` {r core.fluxes}
+
+core.O2conc <- ddply(raw.O2concs, c("Season", "Site", "CoreName", "CoreNo"), summarise,
+                 O2conc = mean(conc_O2))
+
+write.csv(core.O2conc, "E:\\R Markdown\\O2-conc\\clean\\O2-conc-by-core_with-summer15.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the average O2 concentration for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean O2 conc for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r avg.by.type}
+
+type.O2conc <- ddply(core.O2conc, c("Season", "Site", "CoreName"), summarise,
+                 avg_O2conc = mean(O2conc))
+
+write.csv(type.O2conc, "E:\\R Markdown\\O2-conc\\clean\\O2-conc-by-type_all-seasons_all-sites.csv", row.names = F)
+
+```

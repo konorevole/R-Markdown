@@ -1,0 +1,74 @@
+---
+title: "Bulk Density"
+author: "Kathleen Onorevole"
+date: "August 22, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is the processing script for the bulk density data. This script reads in the raw inundation data, calculates bulk density, adds habitat and age columns, sets factor levels, and exports a clean csv.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages needed for these analyses
+```{r libraries, include = F}
+
+library("plyr")
+library("dplyr")
+
+source("functions.R")
+```
+
+Read in the raw data
+``` {r read.in.data}
+
+BD.raw <- read.csv("E:\\R Markdown\\bulk-density\\raw\\BD-raw_Spring15_all-sites.csv", header = T, stringsAsFactors = F)
+
+```
+
+Add a column to calculate bulk density.
+``` {r BD.calcs}
+
+BD <- mutate(BD.raw,
+             BulkDensity = (DryWeight - TinWeight) / Volume)
+
+```
+
+Add columns for age and habitat using functions.  Set the distinguishing labels as factors and implementing the preferred order.  Note that these data were collected from Spring 2015 samples so season is not a factor.
+``` {r order.variables}
+
+BD$CoreName <- factor(BD$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
+BD$Site <- factor(BD$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+
+BD <- add.age(BD)
+BD <- add.habitat(BD)
+
+BD$Habitat <- factor(BD$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+```
+
+Write csv for clean data.
+``` {r core.fluxes}
+
+write.csv(BD, "E:\\R Markdown\\bulk-density\\clean\\BD-clean_Spring15_all-sites.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the average bulk density for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean bulk density for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r avg.by.type}
+
+type.BD <- ddply(BD, c("Site", "CoreName"), summarise,
+                 avg_BD = mean(BulkDensity))
+
+write.csv(type.BD, "E:\\R Markdown\\bulk-density\\clean\\BD-by-type_Spring15_all-sites.csv", row.names = F)
+
+```
+
+

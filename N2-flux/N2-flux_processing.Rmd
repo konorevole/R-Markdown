@@ -1,0 +1,67 @@
+---
+title: "N2-flux_processing"
+author: "Kathleen Onorevole"
+date: "August 17, 2016"
+output: html_document
+---
+
+This is the processing script for the N2 flux data collected with the MIMS.  It reads in the raw N2 flux data, removes lost cores & aberrant MIMS readings, sets factor levels, and exports a clean csv.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages needed for these analyses
+```{r libraries, include = F}
+
+library("plyr")
+library("dplyr")
+
+```
+
+Read in the raw data
+``` {r read.in.data}
+
+all.N2 <- read.csv("E:\\R Markdown\\N2-flux\\raw\\N2-flux_with-summer15.csv", header = T, stringsAsFactors = F)
+
+```
+
+Eliminate NAs for missing cores & aberrant readings (NOAA Spring Time 1)
+``` {r cleaning.up}
+
+all.N2 <- na.omit(all.N2)
+
+all.N2 <- all.N2[ which(all.N2$Season != "Spring" | all.N2$Site != "NOAA" | all.N2$TimePt != "1"), ]
+
+```
+
+Set the distinguishing labels as factors and implementing the preferred order
+``` {r order.variables}
+
+all.N2$Season <- factor(all.N2$Season, levels = c("Summer", "Fall", "Winter", "Spring", "Summer15"))
+all.N2$CoreName <- factor(all.N2$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
+all.N2$Site <- factor(all.N2$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+
+```
+
+Calculate the most basic level of relevant N2 flux data: the average N2 flux for each physical core over the course of the incubation. This is the # that will be used, without any error included, to calculate the average flux per core name (ie LO).  It would be pseudoreplication to calculate error on the time values.  Error should only be calculated for subsequent groupings of the flux data.
+``` {r core.fluxes}
+
+core.N2 <- ddply(all.N2, c("Season", "Site", "CoreName", "CoreNo"), summarise,
+                 N2Flux = mean(N2Flux))
+
+write.csv(core.N2, "E:\\R Markdown\\N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the average flux for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean flux for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r type.fluxes}
+
+type.N2 <- ddply(core.N2, c("Season", "Site", "CoreName"), summarise,
+                 avg_N2Flux = mean(N2Flux))
+
+write.csv(type.N2, "E:\\R Markdown\\N2-flux\\clean\\N2-flux-by-type_all-seasons_all-sites.csv", row.names = F)
+
+```

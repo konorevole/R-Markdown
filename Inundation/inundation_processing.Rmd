@@ -1,0 +1,53 @@
+---
+title: "Inundation"
+author: "Kathleen Onorevole"
+date: "August 22, 2016"
+output: html_document
+---
+
+This is the processing script for the inundation data. Data were created by converting HOBO water level data to % inundation using NOAA tide records.  This script reads in the raw inundation data, adds habitat and age columns, sets factor levels, and exports a clean csv.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages needed for these analyses
+```{r libraries, include = F}
+
+library("plyr")
+library("dplyr")
+
+source("functions.R")
+```
+
+Read in the raw data
+``` {r read.in.data}
+
+inund <- read.csv("E:\\R Markdown\\Inundation\\raw\\inundation-raw_all-sites_all-seasons.csv", header = T, stringsAsFactors = F)
+
+```
+
+
+Add columns for age and habitat using functions. Note that age for Summer 2015 will be one year too young; adjust this manually in main script if using second summer values. Since they are normally eliminated, did not adjust in function script.
+Set the distinguishing labels as factors and implementing the preferred order
+``` {r order.variables}
+
+inund <- add.age(inund)
+inund$Age <- as.numeric(inund$Age)
+inund <- add.habitat(inund)
+
+inund$Season <- factor(inund$Season, levels = c("Summer", "Fall", "Winter", "Spring", "Summer15"))
+inund$CoreName <- factor(inund$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref"))
+inund$Site <- factor(inund$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+inund$Habitat <- factor(inund$Habitat, levels = c("oyster", "marsh", "Ref"))
+
+```
+
+Write csv for clean data.
+``` {r core.fluxes}
+
+write.csv(inund, "E:\\R Markdown\\Inundation\\clean\\inundation-clean_all-sites_all-seasons.csv", row.names = F)
+
+```

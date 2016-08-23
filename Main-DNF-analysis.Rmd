@@ -1,0 +1,164 @@
+---
+title: "Main DNF Analysis"
+author: "Kathleen Onorevole"
+date: "August 18, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set working directory**
+
+Load the packages required for these analyses
+```{r libraries}
+
+library("plyr")
+library("dplyr")
+library("ggplot2")
+library("ggpmisc")
+
+```
+
+Read in relevant data sets. These should all be taken from the CLEAN folders, which are housed in my master R Markdown folder. The raw data have been processed in separate R Markdown documents; see those files for details. Each parameter has its own folder within the parent folder.
+
+Also source the functions script.
+```{r read.in}
+
+all.N2 <- read.csv("N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", header = T, stringsAsFactors = F)
+
+source("functions.R")
+
+```
+
+Set the distinguishing labels as factors and implementing the preferred order. Uses set.factors function written by me.
+``` {r order.variables}
+
+all.N2 <- set.factors(all.N2)
+
+```
+
+Checking for normal distributions based on various groupings
+``` {r normality}
+
+test.norm.Season <- all.N2 %>%
+  group_by(Season) %>%
+  summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+
+test.norm.Site <- all.N2 %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+
+log.Site <- all.N2 %>%
+  mutate(log_N2Flux = log(N2Flux + 40, 10))
+
+test.norm.log.Site <- log.Site %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(log_N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+
+#Using add.habitat function to add a column with the habitat (ie oyster, marsh)
+N2.hab <- add.habitat(all.N2)
+
+#Set the factor levels for the new habitat column
+N2.hab$Habitat <- factor(N2.hab$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+#Checking for normal distribution when grouped by Habitat
+test.norm.Habitat <- N2.hab %>%
+  group_by(Habitat) %>%
+  summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+
+```
+
+Running ANOVAs on the basic N2 flux 
+```{r anovas}
+
+season.anova <- aov(N2Flux ~ Season, data = N2.hab)
+summary(season.anova)
+
+habitat.anova <- aov(N2Flux ~ Habitat, data = N2.hab)
+summary(habitat.anova)
+
+site.anova <- aov(N2Flux ~ Site, data = N2.hab)
+summary(site.anova)
+
+TukeyHSD(site.anova)
+
+#Run ANOVA treating Season & Habitat independently
+anova.N2 <- aov(N2Flux ~ Season + Habitat, data = N2.hab)
+summary(anova.N2)
+
+TukeyHSD(anova.N2)
+
+#Run ANOVA incorporating interaction between Season & Habitat
+interaction.anova.N2 <- aov(N2Flux ~ Season * Habitat, data = N2.hab)
+summary(interaction.anova.N2)
+
+nested.anova <- aov(N2Flux ~ (Season + Habitat) / CoreName, data = N2.hab)
+summary(nested.anova)
+```
+
+Creating linear correlations for 
+``` {r linear.models}
+
+#Eliminate Summer 2015 data points
+no.summer2 <- N2.hab[!N2.hab$Season == "Summer15", ]
+
+#Calculate summary stats based on core type
+no.summer2 <- full.summary(no.summer2)
+no.summer2 <- na.omit(no.summer2)
+
+#Add columns for age and habitat, and set factors appropriately
+N2.age <- add.age(no.summer2)
+N2.age$Age <- as.numeric(N2.age$Age)
+#N2.age$Age <- factor(N2.age$Age, levels = c("0", "2", "7", "20"))
+
+N2.age <- add.habitat(N2.age)
+N2.age$Habitat <- factor(N2.age$Habitat, levels = c("oyster", "marsh", "Ref"))
+
+#Graphing relationship b/t age and N2 flux
+formula <- y ~ x
+
+p1 <- ggplot(N2.age, aes(Age, avg_N2Flux, colour = Habitat))
+p1 + geom_point() +
+  geom_smooth(method = "lm", formula = formula, se = F) +
+  stat_poly_eq(formula = formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+               parse = T) +
+  stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+N2.age %>%
+  ggplot(aes(Age, avg_N2Flux, colour = Habitat)) +
+  geom_point() +
+  facet_grid(Season ~ .) +
+  geom_smooth(method = "lm", formula = formula, se = F) +
+  stat_poly_eq(formula = formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+               parse = T) +
+  stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+N2.age %>%
+  ggplot(aes(Age, avg_N2Flux, colour = CoreName)) +
+  geom_point() +
+  facet_grid(Season ~ .) +
+  geom_smooth(method = "lm", formula = formula, se = F) +
+  stat_poly_eq(formula = formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+               parse = T) +
+  stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+  
+```
+

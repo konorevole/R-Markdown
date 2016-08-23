@@ -1,0 +1,59 @@
+---
+title: "LOI-processing"
+author: "Kathleen Onorevole"
+date: "August 18, 2016"
+output: html_document
+---
+
+test git hub
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set working directory**
+
+Load the packages needed for these analyses
+```{r libraries}
+
+library("plyr")
+library("dplyr")
+
+```
+
+Read in raw data. Note that these data are not entirely raw. For IMS Summer 2014, Sparged Ref C has been used as Reference 2, per convention. The Between Oyster and all other Sparged & Normal Reference cores have also been manually removed from IMS Summer 2014. These were collected for exploratory purposes and have not been used in any other analyses. It was too complicated to try to remove them with R, so they have been eliminated before proceeding with any other analyses.
+``` {r raw.data}
+
+raw.LOI <- read.csv("LOI\\raw\\LOI-raw_with-summer15.csv", header = T, stringsAsFactors = F)
+
+```
+
+Set the distinguishing labels as factors and implement the preferred order
+```{r order.variables}
+
+raw.LOI$Season <- factor(raw.LOI$Season, levels = c("Summer", "Fall", "Winter", "Spring", "Summer15"))
+raw.LOI$Site <- factor(raw.LOI$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+raw.LOI$CoreName <- factor(raw.LOI$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
+
+```
+
+Calculate LOI from dry and combusted weights. Then export clean csv.
+```{r calculations}
+
+percentOM.calcs <- mutate(raw.LOI, PercentOM = (((DryWeight - CombustWeight)/DryWeight)*100))
+
+clean.LOI <- subset(percentOM.calcs, select = c("Season", "Site", "CoreName", "CoreNo", "PercentOM"))
+
+write.csv(clean.LOI, "LOI\\clean\\LOI-clean_with-summer15.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the average LOI for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean LOI for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r avg.by.type}
+
+type.LOI <- ddply(clean.LOI, c("Season", "Site", "CoreName"), summarise,
+                 avg_PercentOM = mean(PercentOM))
+
+write.csv(type.LOI, "E:\\R Markdown\\LOI\\clean\\LOI-by-type_all-seasons_all-sites.csv", row.names = F)
+
+```

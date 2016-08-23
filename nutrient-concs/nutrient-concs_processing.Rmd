@@ -1,0 +1,54 @@
+---
+title: "Nutrient Concentrations"
+author: "Kathleen Onorevole"
+date: "August 22, 2016"
+output: html_document
+---
+
+This is the processing script for the nutrient concentration data. This script reads in the raw inundation data, adds habitat and age columns, sets factor levels, and exports a clean csv.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages needed for these analyses
+```{r libraries, include = F}
+
+library("plyr")
+library("dplyr")
+
+source("functions.R")
+```
+
+Read in the raw data and eliminate missing core (Winter Carrot HO2).
+``` {r read.in.data}
+
+nut.concs.raw <- read.csv("E:\\R Markdown\\nutrient-concs\\raw\\nutrient-concs-raw_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+nut.concs.raw <- na.omit(nut.concs.raw)
+
+```
+
+
+Add columns for age and habitat using functions. Set the distinguishing labels as factors and implement the preferred order.
+``` {r order.variables}
+
+nut.concs <- add.age(nut.concs.raw)
+nut.concs$Age <- as.numeric(nut.concs$Age)
+nut.concs <- add.habitat(nut.concs)
+
+nut.concs$Season <- factor(nut.concs$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+nut.concs$CoreName <- factor(nut.concs$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
+nut.concs$Site <- factor(nut.concs$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+nut.concs$Habitat <- factor(nut.concs$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+```
+
+Write csv for clean data.
+``` {r export.clean}
+
+write.csv(nut.concs, "E:\\R Markdown\\nutrient-concs\\clean\\nut-concs-clean_all-seasons_all-sites.csv", row.names = F)
+
+```
