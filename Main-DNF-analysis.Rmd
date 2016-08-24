@@ -28,6 +28,8 @@ Also source the functions script.
 
 all.N2 <- read.csv("N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", header = T, stringsAsFactors = F)
 
+DNE <- read.csv("DNE\\clean\\DNE-clean_no-summer15_all-sites.csv", header = T, stringsAsFactors = F)
+
 source("functions.R")
 
 ```
@@ -37,20 +39,28 @@ Set the distinguishing labels as factors and implementing the preferred order. U
 
 all.N2 <- set.factors(all.N2)
 
+DNE <- set.factors.basic(DNE)
+DNE <- na.omit(DNE)
+
 ```
 
 Checking for normal distributions based on various groupings
-``` {r normality}
+``` {r DNF.normality}
 
 test.norm.Season <- all.N2 %>%
   group_by(Season) %>%
   summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+all.N2 %>%
+  ggplot(aes(N2Flux)) +
+  geom_histogram(stat = "bin", binwidth = 5) +
+  facet_grid(Site ~ .)
 
 test.norm.Site <- all.N2 %>%
   group_by(Site) %>%
   summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
 log.Site <- all.N2 %>%
   mutate(log_N2Flux = log(N2Flux + 40, 10))
@@ -75,7 +85,7 @@ test.norm.Habitat <- N2.hab %>%
 ```
 
 Running ANOVAs on the basic N2 flux 
-```{r anovas}
+```{r DNF.anovas}
 
 season.anova <- aov(N2Flux ~ Season, data = N2.hab)
 summary(season.anova)
@@ -100,6 +110,15 @@ summary(interaction.anova.N2)
 
 nested.anova <- aov(N2Flux ~ (Season + Habitat) / CoreName, data = N2.hab)
 summary(nested.anova)
+```
+
+Graphing DNE.
+``` {r DNE.graphs}
+
+DNE %>%
+  ggplot(aes(Site, DNE, fill = CoreName)) +
+  geom_bar(stat = "identity", position = "dodge") + facet_grid(Season ~ .)
+
 ```
 
 Creating linear correlations for 

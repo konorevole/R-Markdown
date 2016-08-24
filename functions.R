@@ -6,7 +6,17 @@ set.factors <- function(x){
   x$Site <- factor(x$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
   x$CoreName <- factor(x$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref", "LoRef", "HiRef"))
   return(x)
-  }
+}
+
+#Modified version of the above function to reflect only the basic levels of interest
+#ie eliminating Summer 2015 and Lo/Hi Ref cores
+set.factors.basic <- function(x){
+  x$Season <- factor(x$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+  x$Site <- factor(x$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+  x$CoreName <- factor(x$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref"))
+  return(x)
+}
+
 
 #Function to add a column for habitat.
 #Input is the data frame, output is the same data frame with an additional column for habitat.
