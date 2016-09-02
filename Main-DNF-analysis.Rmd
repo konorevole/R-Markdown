@@ -14,10 +14,18 @@ knitr::opts_chunk$set(echo = TRUE)
 Load the packages required for these analyses
 ```{r libraries}
 
+install.packages("plyr")
 library("plyr")
+install.packages("dplyr")
 library("dplyr")
+install.packages("ggplot2")
 library("ggplot2")
+install.packages("ggpmisc")
 library("ggpmisc")
+install.packages("lmtest")
+library("lmtest")
+install.packages("car")
+library("car")
 
 ```
 
@@ -47,6 +55,14 @@ DNE <- na.omit(DNE)
 Checking for normal distributions based on various groupings
 ``` {r DNF.normality}
 
+bartlett.test(N2Flux ~ Site, data = all.N2)
+
+leveneTest(log_N2Flux ~ Site, data = log.Site)
+boxplot(N2Flux ~ Season, data = all.N2)
+
+bartlett.test(log_N2Flux ~ Site, data = log.Site)
+
+
 test.norm.Season <- all.N2 %>%
   group_by(Season) %>%
   summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
@@ -65,10 +81,54 @@ test.norm.Site <- all.N2 %>%
 log.Site <- all.N2 %>%
   mutate(log_N2Flux = log(N2Flux + 40, 10))
 
+log.Site %>%
+  ggplot(aes(N2Flux)) +
+  geom_histogram(stat = "bin", binwidth = 5) +
+  facet_grid(Site ~ .)
+
+all.N2.age <- add.age(all.N2)
+md <- lm(N2Flux ~ Age, data = all.N2.age)
+summary(md)
+par(mfrow = c(2,2))
+plot(md)
+
+mdbc <- boxCox(md, family = "yjPower", lambda = seq(0.5, 1, by = 0.1))
+which.max(mdbc$y)
+(lambda <- mdbc$x[which.max(mdbc$y)])
+mdbest <- lm(I(N2Flux^lambda) ~ Age, data = all.N2.age)
+summary(mdbest)
+plot(mdbest, which = 1)
+
+
+lambda.allN2age <- boxCox(N2Flux ~ Site, data = all.N2.age, family = "yjPower")
+origdata.yjtrans <- yjPower(all.N2$N2Flux, lambda = 1, jacobian.adjusted = F)
+
 test.norm.log.Site <- log.Site %>%
   group_by(Site) %>%
   summarise(SW.pvalue = shapiro.test(log_N2Flux)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+p1 <- ggplot(all.N2)
+p1 + stat_qq(aes(sample = N2Flux, colour = Site)) + geom_smooth(aes(colour = Site), method = "lm")
+
+p2 <- ggplot(log.Site, aes(sample = log_N2Flux)) 
+p2 + stat_qq(aes(colour = Site))
+
+qqline(log_N2Flux, data = log.Site, distribution = qnorm)
+
+sqr.Site <- all.N2 %>%
+  mutate(sqre_N2Flux = (N2Flux^2),
+         logsqre_N2Flux = log(sqre_N2Flux, 10))
+
+test.norm.sqr.Site <- sqr.Site %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(logsqre_N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+sqr.Site %>%
+  ggplot() +
+  stat_qq(aes(sample = logsqre_N2Flux, colour = Site))
+
 
 #Using add.habitat function to add a column with the habitat (ie oyster, marsh)
 N2.hab <- add.habitat(all.N2)
