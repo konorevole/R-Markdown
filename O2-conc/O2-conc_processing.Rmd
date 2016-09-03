@@ -5,6 +5,8 @@ date: "August 18, 2016"
 output: html_document
 ---
 
+This is the processing script for the O2 concentration data collected with the MIMS.  It reads in the raw O2 concentration data, removes lost cores & aberrant MIMS readings, sets factor levels, and exports a clean csv. There are optional scripts for calculating the O2 concentration values for each core type and annual O2 conc values and exporting the csv's (ie for PRIMER).
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -17,6 +19,7 @@ Load the packages needed for this analysis
 library("plyr")
 library("dplyr")
 
+source("functions.R")
 ```
 
 Read in the raw data
@@ -35,8 +38,7 @@ raw.O2concs <- raw.O2concs[ which(raw.O2concs$Season != "Spring" | raw.O2concs$S
 
 ```
 
-
-Set the distinguishing labels as factors and implementing the preferred order
+Set the distinguishing labels as factors and implementing the preferred order.
 ``` {r order.variables}
 
 raw.O2concs$Season <- factor(raw.O2concs$Season, levels = c("Summer", "Fall", "Winter", "Spring", "Summer15"))
@@ -46,17 +48,29 @@ raw.O2concs$Site <- factor(raw.O2concs$Site, levels = c("IMS", "Carrot", "NOAA",
 ```
 
 Calculate the most basic level of relevant O concentration data: the average O2 concentration for each physical core over the course of the incubation. This is the # that will be used, without any error included, to calculate the average flux per core name (ie LO).  It would be pseudoreplication to calculate error on the time values.  Error should only be calculated for subsequent groupings of the flux data.
-``` {r core.fluxes}
+Add columns for habitat and age.
+``` {r core.calcs}
 
 core.O2conc <- ddply(raw.O2concs, c("Season", "Site", "CoreName", "CoreNo"), summarise,
                  O2conc = mean(conc_O2))
+
+core.O2conc <- add.age(core.O2conc)
+core.O2conc$Age <- as.numeric(core.O2conc$Age)
+core.O2conc <- add.habitat(core.O2conc)
+
+core.O2conc$Habitat <- factor(core.O2conc$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+```
+
+Write csv of clean O2 concentration data for each core.
+``` {r export.csv}
 
 write.csv(core.O2conc, "E:\\R Markdown\\O2-conc\\clean\\O2-conc-by-core_with-summer15.csv", row.names = F)
 
 ```
 
 OPTIONAL: calculate the average O2 concentration for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean O2 conc for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
-``` {r avg.by.type}
+``` {r type.O2conc}
 
 type.O2conc <- ddply(core.O2conc, c("Season", "Site", "CoreName"), summarise,
                  avg_O2conc = mean(O2conc))
@@ -64,3 +78,14 @@ type.O2conc <- ddply(core.O2conc, c("Season", "Site", "CoreName"), summarise,
 write.csv(type.O2conc, "E:\\R Markdown\\O2-conc\\clean\\O2-conc-by-type_all-seasons_all-sites.csv", row.names = F)
 
 ```
+
+OPTIONAL part II: calculate the ANNUAL average O2 concentration by core TYPE.  This produces a csv file with simply the mean O2 concentration parameters for the entire year, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r annual.O2conc}
+
+annual.O2conc <- ddply(type.O2conc, c("Site", "CoreName"), summarise,
+             annual_O2conc = mean(avg_O2conc))
+
+write.csv(annual.O2conc, "E:\\R Markdown\\O2-conc\\clean\\O2-conc-by-type_annual-avg_all-sites.csv", row.names = F)
+
+```
+

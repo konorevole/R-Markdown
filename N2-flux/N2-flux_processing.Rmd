@@ -5,7 +5,7 @@ date: "August 17, 2016"
 output: html_document
 ---
 
-This is the processing script for the N2 flux data collected with the MIMS.  It reads in the raw N2 flux data, removes lost cores & aberrant MIMS readings, sets factor levels, and exports a clean csv.
+This is the processing script for the N2 flux data collected with the MIMS.  It reads in the raw N2 flux data, removes lost cores & aberrant MIMS readings, adds columns for age and habitat, sets factor levels, and exports a clean csv. There are optional scripts for calculating the N2 fluxes for each core type and annual N2 flux, and exporting the csv's (ie for PRIMER).
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -18,6 +18,8 @@ Load the packages needed for these analyses
 
 library("plyr")
 library("dplyr")
+
+source("functions.R")
 
 ```
 
@@ -47,17 +49,29 @@ all.N2$Site <- factor(all.N2$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
 ```
 
 Calculate the most basic level of relevant N2 flux data: the average N2 flux for each physical core over the course of the incubation. This is the # that will be used, without any error included, to calculate the average flux per core name (ie LO).  It would be pseudoreplication to calculate error on the time values.  Error should only be calculated for subsequent groupings of the flux data.
-``` {r core.fluxes}
+Add columns for age and habitat and set levels.
+``` {r core.calcs}
 
 core.N2 <- ddply(all.N2, c("Season", "Site", "CoreName", "CoreNo"), summarise,
                  N2Flux = mean(N2Flux))
+
+core.N2 <- add.age(core.N2)
+core.N2$Age <- as.numeric(core.N2$Age)
+core.N2 <- add.habitat(core.N2)
+
+core.N2$Habitat <- factor(core.N2$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+```
+
+Write csv for core N2 fluxes.
+``` {r export.csv}
 
 write.csv(core.N2, "E:\\R Markdown\\N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", row.names = F)
 
 ```
 
-OPTIONAL: calculate the average flux for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean flux for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
-``` {r type.fluxes}
+OPTIONAL: calculate the average N2 flux for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean flux for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r type.N2flux}
 
 type.N2 <- ddply(core.N2, c("Season", "Site", "CoreName"), summarise,
                  avg_N2Flux = mean(N2Flux))
@@ -65,3 +79,14 @@ type.N2 <- ddply(core.N2, c("Season", "Site", "CoreName"), summarise,
 write.csv(type.N2, "E:\\R Markdown\\N2-flux\\clean\\N2-flux-by-type_all-seasons_all-sites.csv", row.names = F)
 
 ```
+
+OPTIONAL part II: calculate the ANNUAL average N2 fluxes by core TYPE.  This produces a csv file with simply the mean N2 flux for the entire year, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r annual.N2flux}
+
+annual.N2flux <- ddply(type.N2, c("Site", "CoreName"), summarise,
+             annual_N2Flux = mean(avg_N2Flux))
+
+write.csv(annual.N2flux, "E:\\R Markdown\\N2-flux\\clean\\N2-flux-by-type_annual-avg_all-sites.csv", row.names = F)
+
+```
+

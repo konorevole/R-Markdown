@@ -5,7 +5,7 @@ date: "August 22, 2016"
 output: html_document
 ---
 
-This is the processing script for the inundation data. Data were created by converting HOBO water level data to % inundation using NOAA tide records.  This script reads in the raw inundation data, adds habitat and age columns, sets factor levels, and exports a clean csv.
+This is the processing script for the inundation data. Data were created by converting HOBO water level data to % inundation using NOAA tide records.  This script reads in the raw inundation data, adds habitat and age columns, sets factor levels, and exports a clean csv. There is an optional script for calculating the annual averages of each core type and exporting that csv (ie for PRIMER).
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -46,8 +46,18 @@ inund$Habitat <- factor(inund$Habitat, levels = c("oyster", "marsh", "Ref"))
 ```
 
 Write csv for clean data.
-``` {r core.fluxes}
+``` {r core.inundation}
 
 write.csv(inund, "E:\\R Markdown\\Inundation\\clean\\inundation-clean_all-sites_all-seasons.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the ANNUAL average inundation by core TYPE (ie IMS LO).  This produces a csv file with simply the mean inundation parameters for the entire year, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r annual.inundation}
+
+annual.inund <- ddply(inund, c("Site", "CoreName"), summarise,
+             avg_PercInun = mean(Perc_Inun))
+
+write.csv(annual.inund, "E:\\R Markdown\\Inundation\\clean\\inundation-by-type_annual-avg_all-sites.csv", row.names = F)
 
 ```

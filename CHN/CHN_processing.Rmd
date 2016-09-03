@@ -1,0 +1,75 @@
+---
+title: "CHN processing"
+author: "Kathleen Onorevole"
+date: "September 2, 2016"
+output: html_document
+---
+
+This is the processing script for the CHN data. This script reads in the raw data, adds habitat and age columns, sets factor levels, and exports a clean csv. There is an optional script for calculating the averages of each core type and exporting that csv (ie for PRIMER).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages needed for these analyses
+```{r libraries, include = F}
+
+library("plyr")
+library("dplyr")
+
+source("functions.R")
+```
+
+Read in the raw data
+``` {r read.in.data}
+
+CHN.raw <- read.csv("E:\\R Markdown\\CHN\\raw\\CHN-raw_Spring15_all-sites.csv", header = T, stringsAsFactors = F)
+
+```
+
+Add columns for age and habitat using functions.  Set the distinguishing labels as factors and implementing the preferred order.  Note that these data were collected from Spring 2015 samples so season is not a factor.
+``` {r order.variables}
+
+CHN.raw$Site <- factor(CHN.raw$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+CHN.raw$CoreName <- factor(CHN.raw$CoreName, levels = c("LO", "HO", "MM"))
+
+CHN <- add.age(CHN.raw)
+CHN <- add.habitat(CHN)
+
+CHN$Habitat <- factor(CHN$Habitat, levels = c("oyster", "marsh"))
+
+#below is me visualizing the results
+#CHN$Age <- as.numeric(CHN$Age)
+
+#library("ggplot2")
+
+#p1 <- ggplot(CHN, aes(Age, PercentN, colour = CoreName))
+#p1 + geom_point() + 
+#  geom_smooth(aes(group = CoreName), method = "lm", se = F)
+
+#p2 <- ggplot(CHN, aes(Habitat, PercentC, fill = Site))
+#p2 + geom_bar(stat = "identity", position = "dodge")
+
+```
+
+Write csv for clean data.
+``` {r clean.CHN}
+
+write.csv(CHN, "E:\\R Markdown\\CHN\\clean\\CHN-clean_Spring15_all-sites.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the average %C, %N, and C:N ratio by core TYPE (ie IMS LO).  This produces a csv file with simply the mean CHN parameters, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r CHN.avgs}
+
+type.CHN <- ddply(CHN.raw, c("Site", "CoreName"), summarise,
+             avg_PercentC = mean(PercentC),
+             avg_PercentN = mean(PercentN),
+             avg_CtoN = mean(CtoNratio))
+
+write.csv(type.CHN, "E:\\R Markdown\\CHN\\clean\\CHN-by-type_Spring15_all-sites.csv", row.names = F)
+
+```
+

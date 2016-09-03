@@ -5,7 +5,7 @@ date: "August 18, 2016"
 output: html_document
 ---
 
-test git hub2
+This is the processing script for the Loss On Ignition (aka % OM) data. This script reads in the "raw" LOI data (see note below), calculates % OM, adds habitat and age columns, sets factor levels, and exports a clean csv. There are optional scripts for calculating the LOI values for each core type and annual LOI values and exporting the csv's (ie for PRIMER).
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -13,11 +13,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 **Remember to set working directory**
 
-Load the packages needed for these analyses
+Load the packages and functions needed for these analyses
 ```{r libraries}
 
 library("plyr")
 library("dplyr")
+
+source("functions.R")
 
 ```
 
@@ -37,23 +39,44 @@ raw.LOI$CoreName <- factor(raw.LOI$CoreName, levels = c("LO", "HO", "LM", "MM", 
 
 ```
 
-Calculate LOI from dry and combusted weights. Then export clean csv.
+Calculate LOI from dry and combusted weights. Add columns for habitat and age.
 ```{r calculations}
 
 percentOM.calcs <- mutate(raw.LOI, PercentOM = (((DryWeight - CombustWeight)/DryWeight)*100))
 
 clean.LOI <- subset(percentOM.calcs, select = c("Season", "Site", "CoreName", "CoreNo", "PercentOM"))
 
+clean.LOI <- add.age(clean.LOI)
+clean.LOI$Age <- as.numeric(clean.LOI$Age)
+clean.LOI <- add.habitat(clean.LOI)
+
+clean.LOI$Habitat <- factor(clean.LOI$Habitat, levels = c("oyster", "marsh", "Ref"))
+
+```
+
+Write csv of clean LOI data for each core.
+``` {r core.inundation}
+
 write.csv(clean.LOI, "LOI\\clean\\LOI-clean_with-summer15.csv", row.names = F)
 
 ```
 
 OPTIONAL: calculate the average LOI for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean LOI for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
-``` {r avg.by.type}
+``` {r type.LOI}
 
 type.LOI <- ddply(clean.LOI, c("Season", "Site", "CoreName"), summarise,
                  avg_PercentOM = mean(PercentOM))
 
 write.csv(type.LOI, "E:\\R Markdown\\LOI\\clean\\LOI-by-type_all-seasons_all-sites.csv", row.names = F)
+
+```
+
+OPTIONAL part II: calculate the ANNUAL average LOI by core TYPE.  This produces a csv file with simply the mean LOI parameters for the entire year, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r annual.LOI}
+
+annual.LOI <- ddply(type.LOI, c("Site", "CoreName"), summarise,
+             annual_PercentOM = mean(avg_PercentOM))
+
+write.csv(annual.LOI, "E:\\R Markdown\\LOI\\clean\\LOI-by-type_annual-avg_all-sites.csv", row.names = F)
 
 ```

@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This is the processing script for the bulk density data. This script reads in the raw inundation data, calculates bulk density, adds habitat and age columns, sets factor levels, and exports a clean csv.
+This is the processing script for the bulk density data. This script reads in the raw data, calculates bulk density, adds habitat and age columns, sets factor levels, and exports a clean csv.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -55,7 +55,7 @@ BD$Habitat <- factor(BD$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "
 ```
 
 Write csv for clean data.
-``` {r core.fluxes}
+``` {r core.BD}
 
 write.csv(BD, "E:\\R Markdown\\bulk-density\\clean\\BD-clean_Spring15_all-sites.csv", row.names = F)
 
