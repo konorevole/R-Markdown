@@ -47,3 +47,29 @@ full.summary <- function(x){
         stdev = sd(N2Flux),
         se = stdev / sqrt(N))
 }
+
+#Function written by someone online to add r (coefficient of correlation) and p values to scatterplot
+#matrix. I edited it to instead show R^2 (coefficient of correlation) by simply squaring r.
+#Used to specify the upper panel when calling the pairs function (ie upper.panel = panel.cor).
+#Do not need to specify inputs when using as part of pairs command.
+panel.cor <- function(x, y, digits = 2, cex.cor, ...)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  # correlation coefficient
+  r <- cor(x, y)
+  R2 <- r^2
+  txt <- format(c(R2, 0.123456789), digits = digits)[1]
+  txt <- paste("R2= ", txt, sep = "")
+  text(0.5, 0.6, txt)
+  
+  # p-value calculation
+  p <- cor.test(x, y)$p.value
+  txt2 <- format(c(p, 0.123456789), digits = digits)[1]
+  txt2 <- paste("p= ", txt2, sep = "")
+  if(p<0.01) txt2 <- paste("p= ", "<0.01", sep = "")
+  text(0.5, 0.4, txt2)
+}
+
+
+

@@ -1,0 +1,95 @@
+---
+title: "PRIMER pre-analysis"
+author: "Kathleen Onorevole"
+date: "September 4, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set working directory**
+
+Load the packages and functions needed for this analysis.
+```{r libraries}
+
+library("plyr")
+library("dplyr")
+library("car")
+library("ggplot2")
+library("lattice")
+
+source("functions.R")
+
+```
+
+Read in the annual data, which has been previously worked up in the parent R Markdown files. Annual data contains data for each season; all averages contains the average value for each core type for the entire year.
+``` {r read.in}
+
+annual.data <- read.csv("PRIMER\\raw\\annual-data_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+all.avgs <- read.csv("PRIMER\\raw\\all-data_annual-avg_all-sites.csv", header = T, stringsAsFactors = F)
+
+```
+
+Eliminating NA values (because Reference inundation not calculated).
+``` {r remove.na}
+
+annual.nona <- na.omit(annual.data)
+
+all.avgs.nona <- na.omit(all.avgs)
+
+```
+
+Viewing correlation info & scatterplot matrices for the two types of averaged data (by core and annually).
+``` {r correlation.values}
+
+annual.data <- add.age(annual.data)
+annual.data$Age <- as.numeric(annual.data$Age)
+
+cor(annual.data[, 5:11])
+cor(annual.nona[ , 5:11])
+
+pairs(annual.data[, 5:11])
+pairs(annual.nona[, 5:11])
+pairs(annual.data[, 9:11])
+
+annual.nona$Season <- factor(annual.nona$Season, level = c("Summer", "Fall", "Winter", "Spring"))
+annual.data$Season <- factor(annual.data$Season, level = c("Summer", "Fall", "Winter", "Spring"))
+
+pairs(annual.nona[annual.nona$Season == "Spring", 5:11], upper.panel = panel.cor)
+pairs(all.avgs.nona[, 4:12], upper.panel = panel.cor)
+pairs(annual.data[annual.data$Season == "Spring", 5:12], upper.panel = panel.cor)
+
+```
+
+Reading in the data files for each parameter that contain data for each physical core. This is the most basic level of data detail and can be useful for trying to understand trends without obscuring the potentail influence of oddball data points.
+Data files are read in, then joined so that only matching data points to existing N2 flux data are included. Sequential joins are performed. The NA points are removed to get rid of LoRef & HiRef and Summer 2015 cores. The columns are then reorganized and everything is analyzed with a scatterplot matrix.
+``` {r combine.files}
+
+O2.concs <- read.csv("O2-conc\\clean\\O2-conc-by-core_with-summer15.csv", header = T, stringsAsFactors = F)
+
+SOD <- read.csv("SOD\\clean\\SOD-by-core_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+nutfluxes <- read.csv("nutrient-flux\\clean\\nutrient-flux-clean_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+N2flux <- read.csv("N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", header = T, stringsAsFactors = F)
+
+join1 <- left_join(N2flux, O2.concs)
+join2 <- left_join(join1, SOD)
+join3 <- left_join(join2, nutfluxes)
+
+final.join <- na.omit(join3)
+final.join <- final.join[c("Season", "Site", "CoreName", "CoreNo", "Habitat", "Age", "N2Flux", "O2conc", "SOD", "flux_Nox", "flux_NH3")]
+
+pairs(final.join[, 6:11], upper.panel = panel.cor)
+
+```
+
+Write csvs of data that had been compiled as a result of the above joins for use in PRIMER.
+``` {r export.csv}
+
+write.csv(final.join, "PRIMER\\clean\\biogeochem-characs_all-seasons_all-sites.csv", row.names = F)
+
+```

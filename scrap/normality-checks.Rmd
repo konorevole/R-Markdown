@@ -1,0 +1,114 @@
+---
+title: "Normality checks"
+author: "Kathleen Onorevole"
+date: "September 5, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set working directory**
+
+Load the packages required for these analyses
+```{r libraries}
+
+library("plyr")
+library("dplyr")
+library("ggplot2")
+library("ggpmisc")
+library("car")
+library("MASS")
+
+source("functions.R")
+
+```
+
+Read in relevant csv.
+```{r read.data}
+
+N2flux <- read.csv("scrap\\raw\\N2-flux_no-summer15_all-sites.csv", header = T, stringsAsFactors = F)
+
+```
+
+Set the distinguishing labels as factors and implementing the preferred order. Uses set.factors function written by me.
+``` {r order.variables}
+
+N2flux <- set.factors(N2flux)
+
+N2flux$Habitat <- factor(N2flux$Habitat, levels = c("oyster", "marsh", "Ref"))
+N2flux$Age <- as.numeric(N2flux$Age)
+
+```
+
+Checking for normality.
+``` {r norm.test}
+
+bctrans <- boxCox(N2FluxPlus21 ~ Age, data = N2flux,
+        lambda = seq(0, 1, 1/10))
+which.max(bctrans$y)
+lambda <- bctrans$x[which.max(bctrans$y)]
+bcbest <- lm(I(N2FluxPlus21^lambda) ~ Age, data = N2flux)
+summary(bcbest)
+plot(bcbest, which = 1)
+
+
+test.norm.Season <- N2flux %>%
+  group_by(Season) %>%
+  summarise(SW.pvalue = shapiro.test(Square)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+N2flux %>%
+  ggplot(aes(Square)) +
+  geom_histogram(stat = "bin", binwidth = 200) +
+  facet_grid(Season ~ .)
+
+test.norm.Site <- N2flux %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(LogPlus21)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+test.norm.Season <- N2flux %>%
+  group_by(Season) %>%
+  summarise(SW.pvalue = shapiro.test(SquareRoot)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+N2flux %>%
+  ggplot(aes(LogPlus21)) +
+  geom_histogram(stat = "bin", binwidth = .05) +
+  facet_grid(Season ~ .)
+
+bartlett.test(Square ~ Age, data = N2flux)
+leveneTest(LogPlus21 ~ Site, data = N2flux)
+
+anova.N2 <- aov(SquareRoot ~ Season + Habitat, data = N2flux)
+summary(anova.N2)
+
+TukeyHSD(anova.N2)
+
+qqnorm(N2flux$N2FluxPlus21)			# Normal probability plot for original variable
+
+boxcox(N2flux$N2FluxPlus21~1)	            # Illustration of Log-Likelihood profile
+
+p<-powerTransform(N2flux$N2FluxPlus21, family = "bcPower")    # Estimaton of Box-Cox lambda
+
+y<-bcPower(N2flux$N2FluxPlus21,p$lambda)	# Box-Cox transformation
+
+BCN2flux <- cbind(N2flux, y)
+
+qqnorm(y)	
+
+bartlett.test(y ~ Age, data = BCN2flux)
+
+test.norm.Site <- BCN2flux %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(y)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+BCN2flux %>%
+  ggplot(aes(y)) +
+  geom_histogram(stat = "bin", binwidth = .5) +
+  facet_grid(Site ~ .)
+
+```
