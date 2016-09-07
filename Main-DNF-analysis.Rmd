@@ -11,34 +11,27 @@ knitr::opts_chunk$set(echo = TRUE)
 
 **Remember to set working directory**
 
-Load the packages required for these analyses
+Load the packages required for these analyses. Also source the functions script.
 ```{r libraries}
 
-install.packages("plyr")
 library("plyr")
-install.packages("dplyr")
 library("dplyr")
-install.packages("ggplot2")
 library("ggplot2")
-install.packages("ggpmisc")
 library("ggpmisc")
-install.packages("lmtest")
 library("lmtest")
-install.packages("car")
 library("car")
+library("MASS")
+
+source("functions.R")
 
 ```
 
 Read in relevant data sets. These should all be taken from the CLEAN folders, which are housed in my master R Markdown folder. The raw data have been processed in separate R Markdown documents; see those files for details. Each parameter has its own folder within the parent folder.
-
-Also source the functions script.
 ```{r read.in}
 
 all.N2 <- read.csv("N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", header = T, stringsAsFactors = F)
 
 DNE <- read.csv("DNE\\clean\\DNE-clean_no-summer15_all-sites.csv", header = T, stringsAsFactors = F)
-
-source("functions.R")
 
 ```
 
@@ -46,6 +39,9 @@ Set the distinguishing labels as factors and implementing the preferred order. U
 ``` {r order.variables}
 
 all.N2 <- set.factors(all.N2)
+
+all.N2$Habitat <- factor(all.N2$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+all.N2$Age <- as.numeric(all.N2$Age)
 
 DNE <- set.factors.basic(DNE)
 DNE <- na.omit(DNE)
@@ -129,18 +125,93 @@ sqr.Site %>%
   ggplot() +
   stat_qq(aes(sample = logsqre_N2Flux, colour = Site))
 
-
-#Using add.habitat function to add a column with the habitat (ie oyster, marsh)
-N2.hab <- add.habitat(all.N2)
-
-#Set the factor levels for the new habitat column
-N2.hab$Habitat <- factor(N2.hab$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
-
 #Checking for normal distribution when grouped by Habitat
-test.norm.Habitat <- N2.hab %>%
+test.norm.Habitat <- all.N2 %>%
   group_by(Habitat) %>%
   summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+
+```
+
+
+``` {r transformations}
+
+#Adding columns for square root and log of (N2 flux +21) to explore normal distribution
+basic.N2.T <- mutate(basic.N2,
+                     PosN2 = N2Flux + 21,
+                     SquareRtN2 = sqrt(N2Flux + 21),
+                     logN2 = log(N2Flux + 21, 10))
+
+bartlett.test(SquareRtN2 ~ Age, basic.N2.T)
+
+#Checking square root of (N2 flux +21) for normality with Shapiro-Wilk test
+SR.norm.results <- basic.N2.T %>%
+  group_by(Season) %>%
+  summarise(SW.pvalue = shapiro.test(SquareRtN2)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+SR.norm.results2 <- basic.N2.T %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(SquareRtN2)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+SR.norm.results3 <- basic.N2.T %>%
+  group_by(Habitat) %>%
+  summarise(SW.pvalue = shapiro.test(SquareRtN2)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+#Creating linear regression for square root transformation and plotting
+#QQ plot looks great this time!
+plot(SquareRtN2 ~ Age, basic.N2.T)
+reg2 <- lm(SquareRtN2 ~ Age, basic.N2.T)
+summary(reg2)
+par(mfrow = c(2,2))
+plot(reg2)
+
+#!!!THIS IS HOW YOU DO A BOXCOX TRANSFORM FINALLY!!!
+#Create a boxcox diagram using the command from the MASS package
+bctrans <- boxcox(PosN2 ~ Age, data = basic.N2.T,
+                    lambda = seq(0, 1, by = 0.1))
+#Identify the maximum likelihood value
+which.max(bctrans$y)
+#Use that maximum likelihood value (from the y axis) to determine the associated lambda (on the x axis)
+bctrans$x[which.max(bctrans$y)]
+#Take the variable to the power of the lambda to perform the transformation
+use.lambda <- mutate(basic.N2.T,
+                     N2BoxCox = (((PosN2 ^ 0.464) - 1) / 0.464))
+
+use.lambda.type <- ddply(use.lambda, c("Season", "Site", "CoreName", "Habitat", "Age"), summarise,
+                         Avg_N2BC = mean(N2BoxCox))
+
+write.csv(use.lambda, "PRIMER\\clean\\N2_BoxCoxTransform.csv", row.names = F)
+write.csv(use.lambda.type, "PRIMER\\clean\\N2_BoxCoxTransform-by-type.csv", row.names = F)
+
+hist(use.lambda$N2BoxCox)
+qqnorm(use.lambda$N2BoxCox)
+qqline(use.lambda$N2BoxCox)
+plot(use.lambda$N2BoxCox)
+#Visualizing the regression with the Box Cox transformation
+reg4 <- lm(N2BoxCox ~ Age, use.lambda)
+par(mfrow = c(2,2))
+plot(reg4)
+
+#Checking for normality and heteroskedasticity
+bartlett.test(N2BoxCox ~ Age, use.lambda)
+
+BC.norm.results <- use.lambda %>%
+  group_by(Season) %>%
+  summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+BC.norm.results2 <- use.lambda %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+BC.norm.results3 <- use.lambda %>%
+  group_by(Habitat) %>%
+  summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
 ```
 
@@ -170,6 +241,21 @@ summary(interaction.anova.N2)
 
 nested.anova <- aov(N2Flux ~ (Season + Habitat) / CoreName, data = N2.hab)
 summary(nested.anova)
+
+#Running ANOVAS for Box Cox transformed N2 values
+
+season.anova.T <- aov(N2BoxCox ~ Season, data = use.lambda)
+summary(season.anova.T)
+TukeyHSD(season.anova.T)
+
+habitat.anova.T <- aov(N2BoxCox ~ Habitat, data = use.lambda)
+summary(habitat.anova.T)
+TukeyHSD(habitat.anova.T)
+
+site.anova.T <- aov(N2BoxCox ~ Site, data = use.lambda)
+summary(site.anova.T)
+TukeyHSD(site.anova.T)
+
 ```
 
 Graphing DNE.
@@ -185,24 +271,25 @@ Creating linear correlations for
 ``` {r linear.models}
 
 #Eliminate Summer 2015 data points
-no.summer2 <- N2.hab[!N2.hab$Season == "Summer15", ]
+no.summer15 <- all.N2[!all.N2$Season == "Summer15", ]
+
+#Eliminate LoRef and HiRef
+basic.N2 <- no.summer15[!no.summer15$Habitat == "LoRef", ]
+basic.N2 <- basic.N2[!basic.N2$Habitat == "HiRef", ]
 
 #Calculate summary stats based on core type
-no.summer2 <- full.summary(no.summer2)
-no.summer2 <- na.omit(no.summer2)
+type.basic.N2 <- full.summary(basic.N2)
 
-#Add columns for age and habitat, and set factors appropriately
-N2.age <- add.age(no.summer2)
-N2.age$Age <- as.numeric(N2.age$Age)
-#N2.age$Age <- factor(N2.age$Age, levels = c("0", "2", "7", "20"))
-
-N2.age <- add.habitat(N2.age)
-N2.age$Habitat <- factor(N2.age$Habitat, levels = c("oyster", "marsh", "Ref"))
+#Creating linear regression for untransformed data and plotting results
+reg1 <- lm(formula = N2Flux ~ Age, data = basic.N2)
+summary(reg1)
+par(mfrow = c(2,2))
+plot(reg1)
 
 #Graphing relationship b/t age and N2 flux
 formula <- y ~ x
 
-p1 <- ggplot(N2.age, aes(Age, avg_N2Flux, colour = Habitat))
+p1 <- ggplot(basic.N2, aes(Age, N2Flux, colour = Habitat))
 p1 + geom_point() +
   geom_smooth(method = "lm", formula = formula, se = F) +
   stat_poly_eq(formula = formula,
@@ -213,8 +300,8 @@ p1 + geom_point() +
                   aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
                   label.x.npc = "right")
 
-N2.age %>%
-  ggplot(aes(Age, avg_N2Flux, colour = Habitat)) +
+basic.N2 %>%
+  ggplot(aes(Age, N2BoxCox, colour = Habitat)) +
   geom_point() +
   facet_grid(Season ~ .) +
   geom_smooth(method = "lm", formula = formula, se = F) +
@@ -226,8 +313,21 @@ N2.age %>%
                   aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
                   label.x.npc = "right")
 
-N2.age %>%
-  ggplot(aes(Age, avg_N2Flux, colour = CoreName)) +
+basic.N2 %>%
+  ggplot(aes(Age, N2Flux, colour = Season)) +
+  geom_point() +
+  facet_grid(Habitat ~ .) +
+  geom_smooth(method = "lm", formula = formula, se = F) +
+  stat_poly_eq(formula = formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+               parse = T) +
+  stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+basic.N2 %>%
+  ggplot(aes(Age, N2Flux, colour = CoreName)) +
   geom_point() +
   facet_grid(Season ~ .) +
   geom_smooth(method = "lm", formula = formula, se = F) +
