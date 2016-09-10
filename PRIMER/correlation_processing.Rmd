@@ -18,7 +18,10 @@ library("plyr")
 library("dplyr")
 library("car")
 library("ggplot2")
+library("ggpmisc")
 library("lattice")
+library("grid")
+library("reshape2")
 
 source("functions.R")
 
@@ -30,6 +33,8 @@ Read in the annual data, which has been previously worked up in the parent R Mar
 annual.data <- read.csv("PRIMER\\raw\\annual-data_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
 
 all.avgs <- read.csv("PRIMER\\raw\\all-data_annual-avg_all-sites.csv", header = T, stringsAsFactors = F)
+
+spring <- read.csv("PRIMER\\raw\\all-data_spring15_all-sites.csv", header = T, stringsAsFactors = F)
 
 ```
 
@@ -48,11 +53,11 @@ Viewing correlation info & scatterplot matrices for the two types of averaged da
 annual.data <- add.age(annual.data)
 annual.data$Age <- as.numeric(annual.data$Age)
 
-cor(annual.data[, 5:11])
+cor(annual.data[annual.data$Age, 5:11])
 cor(annual.nona[ , 5:11])
 
-pairs(annual.data[, 5:11])
-pairs(annual.nona[, 5:11])
+pairs(annual.data[, 5:11], upper.panel = panel.cor)
+pairs(annual.nona[, 5:11], upper.panel = panel.cor)
 pairs(annual.data[, 9:11])
 
 annual.nona$Season <- factor(annual.nona$Season, level = c("Summer", "Fall", "Winter", "Spring"))
@@ -62,9 +67,119 @@ pairs(annual.nona[annual.nona$Season == "Spring", 5:11], upper.panel = panel.cor
 pairs(all.avgs.nona[, 4:12], upper.panel = panel.cor)
 pairs(annual.data[annual.data$Season == "Spring", 5:12], upper.panel = panel.cor)
 
+#Creating scatterplot matrix for only spring values (relevant for sediment parameters)
+spring.nona <- na.omit(spring)
+pairs(spring.nona[ , 4:12], upper.panel = panel.cor)
+
 ```
 
-Reading in the data files for each parameter that contain data for each physical core. This is the most basic level of data detail and can be useful for trying to understand trends without obscuring the potentail influence of oddball data points.
+Visualize the various parameters across age, per the restoration trajectory model. This can probably be modified to show whatever parameters are of interest, but seems really practical for a figure!
+``` {r parameter.trajectories}
+
+#Melt the data to create 2 columns:parameter names and values
+#To be used in below analysis
+melted.annual <- melt(annual.data, measure.vars = c("O2conc", "SOD", "PercentOM", "PercentInundation", "NOxFlux", "NH3Flux", "N2Flux"))  
+
+#Get rid of NA values and percent inundation (b/c that wouldn't be expected to change w age)
+melted.annual <- na.omit(melted.annual)
+melted.annual <- melted.annual[!melted.annual$variable == "PercentInundation", ]
+
+#This could be a super useful figure! Shows restoration trajectory of all parameters
+#Add regression lines to show various regressions (the one below is squared)
+#Modify the season filter to show one season at a time; can also change the color of the pts
+melted.annual %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Age, value)) +
+  geom_point(aes(colour = Habitat)) +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(aes(colour = Habitat), method = "lm", formula = y ~ x + I(x^2), size = 1) +
+
+#I think this is the annual version of the above
+#Fitted with 2nd order polynomial equation
+#Looks like %OM may have a good story! Strong R2 and p values for all habitats
+melted.annual %>%
+  ggplot(aes(Age, value)) +
+  geom_point(aes(colour = Habitat)) +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(aes(colour = Habitat), method = "lm", formula = y ~ poly(x,2), size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+               aes(colour = Habitat, label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+  stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(colour = Habitat, label = paste("P-value =", signif(..p.value.., digits = 4), sep 
+                                                      = "")),
+                  label.x.npc = "right")
+
+#Same as above but without habitat delineation
+#No clear story re: stats, but may be useful for general BFL shapes
+melted.annual %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+  stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Prep sediment data in the same way as above
+all.avgs.nona <- add.age(all.avgs.nona)
+all.avgs.nona$Age <- as.numeric(all.avgs.nona$Age)
+
+melted.avgs <- melt(all.avgs.nona, measure.vars = c("PercentC", "PercentN", "CtoN", "PercentOM", "BulkDensity", "N2Flux"))
+
+#Graphing restoration trajectory of sediment data (mostly measured 1x) averaged for all habitats
+#Fitted with 2nd order polynomial equation
+#%C, %OM, and bulk density all have strong R2 and p values
+melted.avgs %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+   stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Set factors for spring-only data frame (This may change if I clean up the original)
+#The sediment parameters were measured in spring 2015, so this data set includes matching BGC
+#parameters from only spring 2015
+spring <- add.age(spring)
+spring$Age <- as.numeric(spring$Age)
+spring$Site <- factor(spring$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+spring$Habitat <- factor(spring$Habitat, levels = c("oyster", "marsh", "ref"))
+
+#Melt the spring data frame as before
+melted.spring <- melt(spring, measure.vars = c("Inundation", "PercentC", "PercentN", "CtoN", "BulkDensity", "SpringPercentOM", "SpringSOD", "SpringO2", "SpringN2"))
+
+melted.spring <- na.omit(melted.spring)
+
+#Graph restoration trajectory of spring only values as before
+#Bulk density, %C, %N, %OM, SOD, [O2] all look good re: R2 and p-values
+melted.spring %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+   stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+```
+
+
+Reading in the data files for each parameter that contain data for each physical core. This is the most basic level of data detail and can be useful for trying to understand trends without obscuring the potential influence of oddball data points.
 Data files are read in, then joined so that only matching data points to existing N2 flux data are included. Sequential joins are performed. The NA points are removed to get rid of LoRef & HiRef and Summer 2015 cores. The columns are then reorganized and everything is analyzed with a scatterplot matrix.
 ``` {r combine.files}
 

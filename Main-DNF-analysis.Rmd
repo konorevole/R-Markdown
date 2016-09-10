@@ -36,225 +36,159 @@ DNE <- read.csv("DNE\\clean\\DNE-clean_no-summer15_all-sites.csv", header = T, s
 ```
 
 Set the distinguishing labels as factors and implementing the preferred order. Uses set.factors function written by me.
+Also eliminate Summer 2015 and Lo/Hi Ref cores as neither will be used in basic thesis analysis. (Do not match sampling scheme and thereby mess up statistics.) Will deal with these in a separate R Markdown doc if necessary.
 ``` {r order.variables}
 
-all.N2 <- set.factors(all.N2)
+#Uses basic factor settings to input NA for Lo/Hi Ref and Summer 2015 cores
+all.N2 <- set.factors.basic(all.N2)
 
-all.N2$Habitat <- factor(all.N2$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
 all.N2$Age <- as.numeric(all.N2$Age)
+all.N2$Habitat <- factor(all.N2$Habitat, levels = c("oyster", "marsh", "Ref"))
+
+#Eliminate Lo/Hi Ref and Summer 2015 by getting rid of NAs
+basic.N2 <- na.omit(basic.N2)
 
 DNE <- set.factors.basic(DNE)
 DNE <- na.omit(DNE)
 
 ```
 
-Checking for normal distributions based on various groupings
-``` {r DNF.normality}
+Begin by exploring original N2 flux data set for normal distribution and heteroskedasticity. Essentially, every measure fails.
+``` {r normal.checks}
 
-bartlett.test(N2Flux ~ Site, data = all.N2)
+#Fails Bartlett Test when grouped by Site and Season; Habitat is ok
+bartlett.test(N2Flux ~ Site, data = basic.N2)
+bartlett.test(N2Flux ~ Season, data = basic.N2)
+bartlett.test(N2Flux ~ Habitat, data = basic.N2)
 
-leveneTest(log_N2Flux ~ Site, data = log.Site)
-boxplot(N2Flux ~ Season, data = all.N2)
+#Interestingly, passes Levene Test for Site and Habitat; fails for Season (change 2nd parameter
+#after ~ to explore)
+leveneTest(N2Flux ~ Site, data = basic.N2)
 
-bartlett.test(log_N2Flux ~ Site, data = log.Site)
+#Boxplot looks ok but there are definite outliers (change 2nd parameter as above)
+boxplot(N2Flux ~ Season, data = basic.N2)
 
-
-test.norm.Season <- all.N2 %>%
+#All seasons except winter fail Shapiro-Wilk test
+test.norm.Season <- basic.N2 %>%
   group_by(Season) %>%
   summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
-all.N2 %>%
-  ggplot(aes(N2Flux)) +
-  geom_histogram(stat = "bin", binwidth = 5) +
-  facet_grid(Site ~ .)
-
-test.norm.Site <- all.N2 %>%
+#All sites except Carrot fail Shapiro-Wilk
+test.norm.Site <- basic.N2 %>%
   group_by(Site) %>%
   summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
-log.Site <- all.N2 %>%
-  mutate(log_N2Flux = log(N2Flux + 40, 10))
-
-log.Site %>%
+#Histograms do not appear normal (again, change grouping parameter if desired)
+basic.N2 %>%
   ggplot(aes(N2Flux)) +
   geom_histogram(stat = "bin", binwidth = 5) +
-  facet_grid(Site ~ .)
+  facet_grid(Season ~ .)
 
-all.N2.age <- add.age(all.N2)
-md <- lm(N2Flux ~ Age, data = all.N2.age)
-summary(md)
-par(mfrow = c(2,2))
-plot(md)
-
-mdbc <- boxCox(md, family = "yjPower", lambda = seq(0.5, 1, by = 0.1))
-which.max(mdbc$y)
-(lambda <- mdbc$x[which.max(mdbc$y)])
-mdbest <- lm(I(N2Flux^lambda) ~ Age, data = all.N2.age)
-summary(mdbest)
-plot(mdbest, which = 1)
-
-
-lambda.allN2age <- boxCox(N2Flux ~ Site, data = all.N2.age, family = "yjPower")
-origdata.yjtrans <- yjPower(all.N2$N2Flux, lambda = 1, jacobian.adjusted = F)
-
-test.norm.log.Site <- log.Site %>%
-  group_by(Site) %>%
-  summarise(SW.pvalue = shapiro.test(log_N2Flux)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
-
-p1 <- ggplot(all.N2)
+#QQ plot lines by Site are not satisfactorily straight
+p1 <- ggplot(basic.N2)
 p1 + stat_qq(aes(sample = N2Flux, colour = Site)) + geom_smooth(aes(colour = Site), method = "lm")
-
-p2 <- ggplot(log.Site, aes(sample = log_N2Flux)) 
-p2 + stat_qq(aes(colour = Site))
-
-qqline(log_N2Flux, data = log.Site, distribution = qnorm)
-
-sqr.Site <- all.N2 %>%
-  mutate(sqre_N2Flux = (N2Flux^2),
-         logsqre_N2Flux = log(sqre_N2Flux, 10))
-
-test.norm.sqr.Site <- sqr.Site %>%
-  group_by(Site) %>%
-  summarise(SW.pvalue = shapiro.test(logsqre_N2Flux)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
-
-sqr.Site %>%
-  ggplot() +
-  stat_qq(aes(sample = logsqre_N2Flux, colour = Site))
-
-#Checking for normal distribution when grouped by Habitat
-test.norm.Habitat <- all.N2 %>%
-  group_by(Habitat) %>%
-  summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
 
 ```
 
+Normality checks largely failed. Various transformations were attempted (see failed.transformations section of this R Markdown doc) and I ultimately decided to use the Box Cox transformation. The below code identifies the optimal lambda value, applies the transformation, and checks for normality/heteroskedasticity.
+``` {r BoxCox.transform}
 
-``` {r transformations}
+#Start by finding the optimal value of lambda
 
-#Adding columns for square root and log of (N2 flux +21) to explore normal distribution
-basic.N2.T <- mutate(basic.N2,
-                     PosN2 = N2Flux + 21,
-                     SquareRtN2 = sqrt(N2Flux + 21),
-                     logN2 = log(N2Flux + 21, 10))
-
-bartlett.test(SquareRtN2 ~ Age, basic.N2.T)
-
-#Checking square root of (N2 flux +21) for normality with Shapiro-Wilk test
-SR.norm.results <- basic.N2.T %>%
-  group_by(Season) %>%
-  summarise(SW.pvalue = shapiro.test(SquareRtN2)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
-
-SR.norm.results2 <- basic.N2.T %>%
-  group_by(Site) %>%
-  summarise(SW.pvalue = shapiro.test(SquareRtN2)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
-
-SR.norm.results3 <- basic.N2.T %>%
-  group_by(Habitat) %>%
-  summarise(SW.pvalue = shapiro.test(SquareRtN2)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
-
-#Creating linear regression for square root transformation and plotting
-#QQ plot looks great this time!
-plot(SquareRtN2 ~ Age, basic.N2.T)
-reg2 <- lm(SquareRtN2 ~ Age, basic.N2.T)
-summary(reg2)
-par(mfrow = c(2,2))
-plot(reg2)
-
-#!!!THIS IS HOW YOU DO A BOXCOX TRANSFORM FINALLY!!!
-#Create a boxcox diagram using the command from the MASS package
-bctrans <- boxcox(PosN2 ~ Age, data = basic.N2.T,
+#Create a column with positive values of N2 by adding 21 to each flux
+positive.N2 <- mutate(basic.N2,
+                  PosN2 = N2Flux + 21)
+#Create a log-likelihood graph using a command from the MASS package
+bctrans <- boxcox(PosN2 ~ Age, data = positive.N2,
                     lambda = seq(0, 1, by = 0.1))
 #Identify the maximum likelihood value
 which.max(bctrans$y)
 #Use that maximum likelihood value (from the y axis) to determine the associated lambda (on the x axis)
 bctrans$x[which.max(bctrans$y)]
-#Take the variable to the power of the lambda to perform the transformation
-use.lambda <- mutate(basic.N2.T,
-                     N2BoxCox = (((PosN2 ^ 0.464) - 1) / 0.464))
 
-use.lambda.type <- ddply(use.lambda, c("Season", "Site", "CoreName", "Habitat", "Age"), summarise,
-                         Avg_N2BC = mean(N2BoxCox))
+#Take the variable to the power of the lambda to perform the transformation!
+BC.N2 <- mutate(positive.N2,
+                     N2BoxCox = (((PosN2 ^ 0.454) - 1) / 0.454))
 
-write.csv(use.lambda, "PRIMER\\clean\\N2_BoxCoxTransform.csv", row.names = F)
-write.csv(use.lambda.type, "PRIMER\\clean\\N2_BoxCoxTransform-by-type.csv", row.names = F)
+#Calculate transformed N2 flux values by core type
+BC.N2.type <- ddply(BC.N2, c("Season", "Site", "CoreName", "Habitat", "Age"), summarise,
+                         Avg_N2BoxCox = mean(N2BoxCox))
 
-hist(use.lambda$N2BoxCox)
-qqnorm(use.lambda$N2BoxCox)
-qqline(use.lambda$N2BoxCox)
-plot(use.lambda$N2BoxCox)
+#Histogram and QQ plots look much better
+hist(BC.N2$N2BoxCox)
+qqnorm(BC.N2$N2BoxCox)
+qqline(BC.N2$N2BoxCox)
+
+#I believe this plot visualizes the variance, which looks more even
+plot(BC.N2$N2BoxCox)
+
 #Visualizing the regression with the Box Cox transformation
-reg4 <- lm(N2BoxCox ~ Age, use.lambda)
+reg1 <- lm(N2BoxCox ~ Age, BC.N2)
 par(mfrow = c(2,2))
-plot(reg4)
+plot(reg1)
 
-#Checking for normality and heteroskedasticity
-bartlett.test(N2BoxCox ~ Age, use.lambda)
+#Transformed values pass Bartlett Test except for when grouped by Site (p = 0.01)
+#Pass Levene Test for every grouping
+#Change grouping variable after ~ to view various outcomes
+bartlett.test(N2BoxCox ~ Habitat, BC.N2)
+leveneTest(N2BoxCox ~ Habitat, BC.N2)
 
-BC.norm.results <- use.lambda %>%
+#Transformed data passes Shapiro-Wilk test for all groupings except Army & oysters
+BC.norm.Season <- BC.N2 %>%
   group_by(Season) %>%
   summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
-BC.norm.results2 <- use.lambda %>%
+BC.norm.Site <- BC.N2 %>%
   group_by(Site) %>%
   summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
-BC.norm.results3 <- use.lambda %>%
+BC.norm.Habitat <- BC.N2 %>%
   group_by(Habitat) %>%
   summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
 ```
 
-Running ANOVAs on the basic N2 flux 
+Running ANOVAs on the Box Cox transformed N2 flux values.
 ```{r DNF.anovas}
 
-season.anova <- aov(N2Flux ~ Season, data = N2.hab)
+#One-way ANOVA by Season
+season.anova <- aov(N2BoxCox ~ Season, data = BC.N2)
 summary(season.anova)
+TukeyHSD(season.anova)
 
-habitat.anova <- aov(N2Flux ~ Habitat, data = N2.hab)
-summary(habitat.anova)
-
-site.anova <- aov(N2Flux ~ Site, data = N2.hab)
+#One-way ANOVA by Site
+site.anova <- aov(N2BoxCox ~ Site, data = BC.N2)
 summary(site.anova)
-
 TukeyHSD(site.anova)
 
-#Run ANOVA treating Season & Habitat independently
-anova.N2 <- aov(N2Flux ~ Season + Habitat, data = N2.hab)
-summary(anova.N2)
+#One-way ANOVA by Core Name confirms that none of them are significantly different from each other
+#More appropriate to use Habitat as grouping, which will be employed going forward
+CoreName.anova <- aov(N2BoxCox ~ CoreName, data = BC.N2)
+summary(CoreName.anova)
+TukeyHSD(CoreName.anova)
 
-TukeyHSD(anova.N2)
+#One-way ANOVA by Habitat
+habitat.anova <- aov(N2BoxCox ~ Habitat, data = BC.N2)
+summary(habitat.anova)
+TukeyHSD(habitat.anova)
+
+#Run ANOVA treating Season & Site independently
+indep.anova <- aov(N2Flux ~ Season + Site, data = BC.N2)
+summary(indep.anova)
+TukeyHSD(indep.anova)
 
 #Run ANOVA incorporating interaction between Season & Habitat
-interaction.anova.N2 <- aov(N2Flux ~ Season * Habitat, data = N2.hab)
-summary(interaction.anova.N2)
+interact.anova <- aov(N2Flux ~ Season * Habitat, data = BC.N2)
+summary(interact.anova)
 
-nested.anova <- aov(N2Flux ~ (Season + Habitat) / CoreName, data = N2.hab)
+nested.anova <- aov(N2Flux ~ (Season + Site) / Habitat, data = BC.N2)
 summary(nested.anova)
-
-#Running ANOVAS for Box Cox transformed N2 values
-
-season.anova.T <- aov(N2BoxCox ~ Season, data = use.lambda)
-summary(season.anova.T)
-TukeyHSD(season.anova.T)
-
-habitat.anova.T <- aov(N2BoxCox ~ Habitat, data = use.lambda)
-summary(habitat.anova.T)
-TukeyHSD(habitat.anova.T)
-
-site.anova.T <- aov(N2BoxCox ~ Site, data = use.lambda)
-summary(site.anova.T)
-TukeyHSD(site.anova.T)
+TukeyHSD(nested.anova)
 
 ```
 
@@ -301,7 +235,7 @@ p1 + geom_point() +
                   label.x.npc = "right")
 
 basic.N2 %>%
-  ggplot(aes(Age, N2BoxCox, colour = Habitat)) +
+  ggplot(aes(Age, N2Flux, colour = Habitat)) +
   geom_point() +
   facet_grid(Season ~ .) +
   geom_smooth(method = "lm", formula = formula, se = F) +
@@ -339,5 +273,57 @@ basic.N2 %>%
                   aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
                   label.x.npc = "right")
   
+```
+
+Early attempts to achieve normal distribution within N2 flux rates using a log transformation. Other transformations were attempted (ie square root) but not recorded here because of complete failure.  Ultimately, Box Cox was used for transforming N2 fluxes. The below code has been saved in case it's necessary to return to it.
+``` {r failed.transformations}
+
+#Eliminate Summer 2015 data points
+no.summer15 <- all.N2[!all.N2$Season == "Summer15", ]
+
+#Eliminate LoRef and HiRef
+no.summer15 <- no.summer15[!no.summer15$Habitat == "LoRef", ]
+no.summer15 <- no.summer15[!no.summer15$Habitat == "HiRef", ]
+
+#Create column with log of positive N2 flux values (added 21 to make them all >0)
+log.Site <- no.summer15 %>%
+  mutate(log_N2Flux = log(N2Flux + 21, 10))
+
+#Log-transformed values fail 2 tests for heteroskedasticity
+bartlett.test(log_N2Flux ~ Site, data = log.Site)
+leveneTest(log_N2Flux ~ Site, data = log.Site)
+
+#2 sites fail Shapiro-Wilk test for normality
+test.norm.log.Site <- log.Site %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(log_N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+#oysters fail Shapiro-Wilk test for nomality
+test.norm.log.Habitat <- log.Site %>%
+  group_by(Habitat) %>%
+  summarise(SW.pvalue = shapiro.test(log_N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+
+#Exploring log-transformed values w/ histograms by Site
+#Data are right-skewed, altho general bell shape is slightly better
+log.Site %>%
+  ggplot(aes(log_N2Flux)) +
+  geom_histogram(stat = "bin", binwidth = .05) +
+  facet_grid(Season ~ .)
+
+#QQ plot of log-transformed values also looks questionable
+p2 <- ggplot(log.Site, aes(sample = log_N2Flux)) 
+p2 + stat_qq(aes(colour = Site))
+
+```
+
+``` {r export.csv}
+
+#CSVs for the Box Cox transformed N2 flux values
+
+write.csv(use.lambda, "PRIMER\\clean\\N2_BoxCoxTransform.csv", row.names = F)
+write.csv(use.lambda.type, "PRIMER\\clean\\N2_BoxCoxTransform-by-type.csv", row.names = F)
+
 ```
 
