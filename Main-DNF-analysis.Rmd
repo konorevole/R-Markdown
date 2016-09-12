@@ -46,7 +46,7 @@ all.N2$Age <- as.numeric(all.N2$Age)
 all.N2$Habitat <- factor(all.N2$Habitat, levels = c("oyster", "marsh", "Ref"))
 
 #Eliminate Lo/Hi Ref and Summer 2015 by getting rid of NAs
-basic.N2 <- na.omit(basic.N2)
+basic.N2 <- na.omit(all.N2)
 
 DNE <- set.factors.basic(DNE)
 DNE <- na.omit(DNE)
@@ -183,8 +183,12 @@ summary(indep.anova)
 TukeyHSD(indep.anova)
 
 #Run ANOVA incorporating interaction between Season & Habitat
-interact.anova <- aov(N2Flux ~ Season * Habitat, data = BC.N2)
+interact.anova <- aov(N2Flux ~  Habitat * Site * Season, data = BC.N2)
 summary(interact.anova)
+TukeyHSD(interact.anova)
+
+interact2 <- aov(N2Flux ~ Site * Season, data = BC.N2)
+summary(interact2)
 
 nested.anova <- aov(N2Flux ~ (Season + Site) / Habitat, data = BC.N2)
 summary(nested.anova)
