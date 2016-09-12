@@ -286,54 +286,10 @@ melted.spring %>%
 Cleaned-up versions of the above data exploration.
 ``` {r thesis.figs}
 
+#Creating a new melted dataframe that does not include [O2], NOx flux, or NH3 flux
 melted.annual2 <- melted.annual[!melted.annual$variable == "O2conc", ]
 melted.annual2 <- melted.annual2[!melted.annual2$variable == "NOxFlux", ]
 melted.annual2 <- melted.annual2[!melted.annual2$variable == "NH3Flux", ]
-
-melted.annual2 %>%
-  ggplot(aes(Age, value)) +
-  geom_point() +
-  facet_grid(variable ~ ., scales = "free_y") +
-  geom_smooth(method = "lm", formula = y ~ poly(x,2), size = 1) +
-  stat_poly_eq(formula = y ~ poly(x,2),
-               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
-                 parse = T) +
-  stat_fit_glance(method = "lm",
-                  method.args = list(formula = quad.formula),
-                  geom = "text",
-                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
-                  label.x.npc = "right")
-
-#Same as above but visualized with a separate line for each habitat
-#Fitted with 2nd order polynomial equation
-#Looks like %OM may have a good story! Strong R2 and p values for all habitats
-melted.annual2 %>%
-  ggplot(aes(Age, value, colour = Habitat)) +
-  geom_point() +
-  facet_grid(variable ~ ., scales = "free_y") +
-  geom_smooth(method = "lm", formula = quad.formula, se = F, size = 1) +
-  stat_poly_eq(formula = quad.formula,
-               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
-  stat_fit_glance(method = "lm",
-                  method.args = list(formula = quad.formula),
-                  geom = "text",
-                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
-                  label.x.npc = "right")
-
-melted.annual2 %>%
-  filter(Season == "Summer") %>%
-  ggplot(aes(Age, value)) +
-  geom_point() +
-  facet_grid(variable ~ ., scales = "free_y") +
-  geom_smooth(method = "lm", formula = quad.formula, size = 1) +
-  stat_poly_eq(formula = quad.formula,
-               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
-               parse = T, label.y.npc = "top") +
-  stat_fit_glance(method = "lm",
-                  method.args = list(formula = quad.formula),
-                  geom = "text",
-                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
-                  label.x.npc = "right")
 
 #The only sediment parameter that will be included in the regression graphs is bulk density
 #Add a column for Season to the sediment parameters dataframe and populate it with Spring
@@ -348,6 +304,7 @@ sed.join <- full_join(melted.annual2, bulk.density)
 #Reorder the variables for graph purposes and change the Ref label so they match
 sed.join$variable <- factor(sed.join$variable, levels = c("SOD", "PercentOM", "BulkDensity", "N2Flux"))
 sed.join$Habitat <- revalue(sed.join$Habitat, c("ref" = "Ref"))
+sed.join$Habitat <- factor(sed.join$Habitat, c("oyster", "marsh", "Ref"))
 
 #All data visualized with one regression line; not divided by habitat
 #Includes every season of data for SOD, %OM, and N2 flux
