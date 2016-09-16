@@ -1,0 +1,57 @@
+---
+title: "Basic Graphs"
+author: "Kathleen Onorevole"
+date: "September 16, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set working directory**
+
+Load the packages needed for this analysis
+```{r libraries}
+
+library("plyr")
+library("dplyr")
+library("ggplot2")
+library("ggpmisc")
+
+source("functions.R")
+```
+
+``` {r load.data}
+
+type.N2O <- read.csv("N2O\\clean\\N2O-by-type_all-seasons_all-sites.csv", header = T)
+
+```
+
+``` {r graphs}
+
+type.N2O <- set.factors.basic(type.N2O)
+type.N2O <- add.habitat(type.N2O)
+type.N2O$Habitat <- factor(type.N2O$Habitat, levels = c("oyster", "marsh", "Ref"))
+
+type.N2O %>%
+  group_by(Habitat) %>%
+  ggplot(aes(Site, avg_N2OFlux, fill = Habitat)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
+  stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3) +
+  facet_grid(. ~ Season)
+
+all.concs %>%
+  #filter(Site == "NOAA") %>%
+  group_by(Season, CoreName) %>%
+  ggplot(aes(CoreName, uM_NH3, fill = Season)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
+  stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3) +
+  facet_grid(Site ~ .)
+
+p1 <- ggplot(type.N2O, aes(Site, avg_N2OFlux))
+p1 + geom_bar(aes(fill = Habitat), stat = "identity", position = "dodge") +
+  facet_grid(. ~ Season)
+
+
+```

@@ -78,7 +78,7 @@ master <- habitat.numbers(master)
 master <- master[c("Season", "SeasonNumber", "Site", "Age", "CoreName", "Habitat", "HabitatNumber",  "avg_N2Flux", "Perc_Inun", "avg_PercentOM", "avg_SOD", "avg_O2conc", "avg_flux_NOx", "avg_flux_NH3")]
 
 #Rename the columns so they're less bulky
- <- plyr::rename(master, c("avg_N2Flux" = "N2flux", "Perc_Inun" = "Inund", "avg_PercentOM" = "SOM", "avg_SOD" = "SOD", "avg_O2conc" = "O2conc", "avg_flux_NOx" = "NOxflux", "avg_flux_NH3" = "NH3flux"))
+master <- plyr::rename(master, c("avg_N2Flux" = "N2flux", "Perc_Inun" = "Inund", "avg_PercentOM" = "SOM", "avg_SOD" = "SOD", "avg_O2conc" = "O2conc", "avg_flux_NOx" = "NOxflux", "avg_flux_NH3" = "NH3flux"))
 
 summer <- master[master$Season == "Summer", ]
 fall <- master[master$Season == "Fall", ]
@@ -95,52 +95,43 @@ Army <- master[master$Site == "Army", ]
 Using master data frame to build regression tree.
 ```{r building.tree}
 
-fit.all <- rpart(N2flux ~ SeasonNumber + HabitatNumber + Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = master, control = rpart.control(minsplit = 4, minbucket = 8, cp = 0))
+fit.all <- rpart(N2flux ~ SeasonNumber + HabitatNumber + Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = master)
 
-names(fit.all)
-fit.all$cptable[dim(fit.all$cptable)[1] - 9:0, ]
-cp10 = which(fit.all$cptable[, 2] == 9)
-fit.all9 = prune(fit.all, fit.all$cptable[cp10, 1])
-print(fit.all9)
-summary(fit.all9)
-prp(fit.all9)
-
-printcp(fit.all)
-plotcp(fit.all)
 summary(fit.all)
-
 plot(fit.all, uniform = T)
 text(fit.all, use.n = T, all = T, cex = 0.8)
-prp(fit.all)
 
-new.fit.all <- prp(fit.all, snip = T)$obj
-prp(new.fit.all)
+par(mfrow = c(1,2))
+
+pruned.all <- prune(fit.all, cp = 0.04)
+plot(pruned.all, uniform = T)
+text(pruned.all, use.n = T, all = T, cex = 0.8)
 
 
 fit.BCG <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = master)
 summary(fit.BCG)
+fit.BCG
+
+plotcp(fit.BCG)
+plot(fit.BCG, uniform = T)
+text(fit.BCG, use.n = T, all = T, cex = 0.8)
 
 #Research indicates that the tree should be pruned by consulting the cptable, included in summary
 #In the table, xerror = cross-validation error, xstd = standard deviation, & CP = complexity parameter
-#
-lowest <- which.min(fit.BCG$cptable[, "xerror"])
-cp.BCG <- fit.BCG$cptable[lowest, "CP"]
-pruned.BCG <- prune(fit.BCG, cp.BCG)
+#(CP explains how much of the original variablility is predicted by the split)
+#Ideally, there is what's called the 1-SE rule: find the lowest xerror, then add the corresponding
+#xstd. Look for the line in cptable that has the lowest # of splits with an xerror less than the
+#result of the addition. The CP of that row should be used to prune the tree.
+
+#In this case, the corresponding CP was 0.0417 (3 splits, so 4 nodes).
+pruned.BCG <- prune(fit.BCG, cp = 0.04)
 plot(pruned.BCG, uniform = T)
 text(pruned.BCG, use.n = T, all = T, cex = 0.8)
 
-pruned.BCG2 <- prune(fit.BCG, cp = 0.15)
-plot(pruned.BCG2, uniform = T)
-text(pruned.BCG2, use.n = T, all = T, cex = 0.8)
 
-par(mfrow = c(1,2))
+rsq.rpart(pruned.BCG)
 
-plot(fit.BCG, uniform = T)
-text(fit.BCG, use.n = T, all = T, cex = 0.8)
-printcp(fit.BCG)
-prp(fit.BCG)
-
-summer.tree <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = summer, control = rpart.control(minsplit = 2, minbucket = 2))
+summer.tree <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = summer)
 
 summer.tree$cptable
 summer.prune <- prune(summer.tree, cp = summer.tree$cptable[which.min(summer.tree$cptable[ ,"xerror"]), "CP"])

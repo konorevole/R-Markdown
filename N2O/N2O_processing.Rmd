@@ -1,0 +1,82 @@
+---
+title: "N2O_processing"
+author: "Kathleen Onorevole"
+date: "September 16, 2016"
+output: html_document
+---
+
+This is the processing script for the N2O (NITROUS OXIDE) concentration data.  It reads in the raw N2O data, removes lost cores & aberrant readings, sets factor levels, and exports a clean csv. There are optional scripts for calculating the N2O values for each core type and annual N2O conc values and exporting the csv's (ie for PRIMER).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set working directory**
+
+Load the packages needed for this analysis
+```{r libraries}
+
+library("plyr")
+library("dplyr")
+
+source("functions.R")
+```
+
+Read in the raw data
+```{r read.in}
+
+raw.noxide <- read.csv("N2O\\raw\\N2O-raw_no-summer15_all-sites.csv", header = T, stringsAsFactors = F)
+
+```
+
+Eliminate NAs for missing cores & aberrant readings
+``` {r cleaning.up}
+
+all.noxide <- na.omit(raw.noxide)
+
+```
+
+Set the distinguishing labels as factors and implementing the preferred order.
+``` {r order.variables}
+
+all.noxide$Site <- factor(all.noxide$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+all.noxide$Season <- factor(all.noxide$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+all.noxide$CoreName <- factor(all.noxide$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref"))
+
+all.noxide <- add.age(all.noxide)
+all.noxide$Age <- as.numeric(all.noxide$Age)
+all.noxide <- add.habitat(all.noxide)
+
+#Getting rid of IMS LoRef & HiRef
+all.noxide <- na.omit(all.noxide)
+
+```
+
+Write csv of clean N2O conc & flux data for each core.
+``` {r export.csv}
+
+write.csv(all.noxide, "N2O\\clean\\N2O-by-core_all-seasons_all-sites.csv", row.names = F)
+
+```
+
+OPTIONAL: calculate the average N2O flux for each core TYPE (ie LO rather than LO1).  This produces a csv file with simply the mean N2O flux for each core type, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r type.N2Ofux}
+
+type.N2O <- ddply(all.noxide, c("Season", "Site", "CoreName"), summarise,
+                 avg_N2OFlux = mean(N2O_flux))
+
+write.csv(type.N2O, "N2O\\clean\\N2O-by-type_all-seasons_all-sites.csv", row.names = F)
+
+```
+
+OPTIONAL part II: calculate the ANNUAL average N2O flux by core TYPE.  This produces a csv file with simply the mean N2O flux parameters for the entire year, generally to be used in some other type of analysis (ie input into PRIMER).
+``` {r annual.N2Oflux}
+
+annual.N2O <- ddply(type.N2O, c("Site", "CoreName"), summarise,
+             annual_N2OFlux = mean(avg_N2OFlux))
+
+write.csv(annual.N2O, "N2O\\clean\\N2O-by-type_annual-avgs_all-sites.csv", row.names = F)
+
+```
+
+
