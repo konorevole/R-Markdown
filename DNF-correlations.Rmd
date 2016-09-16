@@ -1,0 +1,393 @@
+---
+title: "Correlations"
+author: "Kathleen Onorevole"
+date: "September 13, 2016"
+output: html_document
+---
+
+This is a relocated version of the correlations_processing script, formerly located in the PRIMER folder. It was feared that it would not be intuitive to find this folder in the future, so it was copied to the present location in the parent folder on 9/13/16. Hopefully none of the references will be corrupted.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set working directory**
+
+Load the packages and functions needed for this analysis.
+```{r libraries}
+
+library("plyr")
+library("dplyr")
+library("car")
+library("ggplot2")
+library("ggpmisc")
+library("lattice")
+library("grid")
+library("reshape2")
+
+source("functions.R")
+
+```
+
+Read in the annual data, which has been previously worked up in the parent R Markdown files. Annual data contains data for each season; all averages contains the average value for each core type for the entire year.
+``` {r read.in}
+
+annual.data <- read.csv("PRIMER\\raw\\annual-data_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+all.avgs <- read.csv("PRIMER\\raw\\all-data_annual-avg_all-sites.csv", header = T, stringsAsFactors = F)
+
+spring <- read.csv("PRIMER\\raw\\all-data_spring15_all-sites.csv", header = T, stringsAsFactors = F)
+
+sed.data <- read.csv("PRIMER\\raw\\sed-data_spring15_all-sites.csv", header = T, stringsAsFactors = F)
+
+```
+
+Eliminating NA values and add column for Age
+``` {r pretreat}
+
+all.avgs.nona <- na.omit(all.avgs)
+all.avgs.nona$Site <- factor(all.avgs.nona$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+all.avgs.nona$CoreName <- factor(all.avgs.nona$CoreName, levels = c("LO", "HO", "MM"))
+all.avgs.nona$Habitat <- factor(all.avgs.nona$Habitat, levels = c("oyster", "marsh"))
+
+sed.data$Site <- factor(sed.data$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+sed.data$CoreName <- factor(sed.data$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref"))
+sed.data$Habitat <- factor(sed.data$Habitat, levels = c("oyster", "marsh", "Ref"))
+
+annual.data <- add.age(annual.data)
+annual.data$Age <- as.numeric(annual.data$Age)
+
+```
+
+Viewing correlation info & scatterplot matrices for the two types of averaged data (by core and annually).
+``` {r correlation.values}
+
+cor(annual.data[annual.data$Age, 5:11])
+cor(annual.data[ , 5:11])
+
+pairs(annual.data[, 5:11], upper.panel = panel.cor)
+pairs(annual.data[, 9:11], upper.panel = panel.cor)
+
+annual.data$Season <- factor(annual.data$Season, level = c("Summer", "Fall", "Winter", "Spring"))
+
+pairs(annual.data[annual.data$Season == "Spring", 5:11], upper.panel = panel.cor)
+
+#Creating scatterplot matrix for only spring values (relevant for sediment parameters)
+spring.nona <- na.omit(spring)
+sed.data.nona <- na.omit(sed.data)
+all.sed <- inner_join(sed.data.nona, spring.nona)
+
+pairs(all.avgs.nona[ , 4:12], upper.panel = panel.cor)
+pairs(all.avgs.nona[ , 5:8], upper.panel = panel.cor)
+
+```
+
+Visualize the various parameters across age, per the restoration trajectory model. This can probably be modified to show whatever parameters are of interest, but seems really practical for a figure!
+``` {r regression}
+
+#Regression is 2nd order polynomial based on expectations (not linear) and data
+quad.formula <- y ~ poly(x,2)
+
+#Melt the data to create 2 columns:parameter names and values
+#To be used in below analysis
+melted.annual <- melt(annual.data, measure.vars = c("O2conc", "SOD", "PercentOM", "PercentInundation", "NOxFlux", "NH3Flux", "N2Flux"))  
+
+#Get rid of NA values and percent inundation (b/c that wouldn't be expected to change w age)
+melted.annual <- na.omit(melted.annual)
+melted.annual <- melted.annual[!melted.annual$variable == "PercentInundation", ]
+
+#Code from Adam to check that linear regression values are being calculated accurately
+#LM check - linear
+summary(lm(annual.data$SOD~annual.data$Age))
+#LM check - quadratic
+summary(lm(annual.data$O2conc~cbind(annual.data$Age,annual.data$Age^2)))
+
+#ANNUAL CONSIDERATION OF PARAMETERS CONSIDERED SEASONALLY
+#Seasonal parameters visualized for the entire year with a single linear regression line
+#Not broken up by habitat
+#Only % OM has significant p-value and decent R2
+melted.annual %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Same as above but visualized with a separate line for each habitat
+#Fitted with 2nd order polynomial equation
+#Looks like %OM may have a good story! Strong R2 and p values for all habitats
+melted.annual %>%
+  ggplot(aes(Age, value, colour = Habitat)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = quad.formula, se = F, size = 1) +
+  stat_poly_eq(formula = quad.formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#SEASONAL CONSIDERATIONS OF VARIABLES COLLECTED EVERY SEASON
+#Filter function to present each season individually; not divided by habitat
+#N2 flux results are interesting for Summer; no other seasons provide new info
+melted.annual %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = quad.formula, size = 1) +
+  stat_poly_eq(formula = quad.formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+               parse = T, label.y.npc = "top") +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Divided by season and visualized with a separate regression line for each habitat
+#Modify the season filter to show one season at a time; can also change the color of the pts
+melted.annual %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Age, value, colour = Habitat)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = quad.formula, se = F, size = 1) +
+  stat_poly_eq(formula = quad.formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+               parse = T, label.y.npc = "top") +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+
+#Prep sediment data in the same way as above
+#This data set contains only CHN and bulk density data, matched with corresponding spring N2 fluxes
+sed.data <- add.age(sed.data)
+sed.data$Age <- as.numeric(sed.data$Age)
+
+melted.sed <- melt(sed.data, measure.vars = c("PercentC", "PercentN", "CtoN", "BulkDensity", "SpringN2"))
+
+#Graphing linear regression with age for sed parameters
+#The regression lines & stats are the same whether NA lines are included or not
+#So not necessary to create a data frame without NAs (ignore warnings)
+melted.sed %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+   stat_fit_glance(method = "lm",
+                   method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+melted.sed %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = quad.formula, size = 1) +
+  stat_poly_eq(formula = quad.formula,
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+   stat_fit_glance(method = "lm",
+                   method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#LM check - linear
+summary(lm(sed.data$BulkDensity~sed.data$Age))
+
+#LM check - quadratic
+summary(lm(sed.data$BulkDensity~cbind(sed.data$Age,sed.data$Age^2)))
+
+
+melted.sed %>%
+  ggplot(aes(Age, value)) +
+  geom_point(aes(colour = Habitat)) +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(aes(colour = Habitat), method = "lm", formula = y ~ poly(x,2), se = F, size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+                 aes(colour = Habitat, label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+   stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(colour = Habitat, label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+
+###Everything below here will probably be eliminated- old work
+
+all.avgs.nona <- add.age(all.avgs.nona)
+all.avgs.nona$Age <- as.numeric(all.avgs.nona$Age)
+
+melted.avgs <- melt(all.avgs.nona, measure.vars = c("Inundation", "PercentC", "PercentN", "CtoN", "PercentOM", "SOD", "O2conc", "BulkDensity", "N2Flux"))
+
+melted.avgs %>%
+  ggplot(aes(Age, value)) +
+  geom_point(aes(colour = Habitat)) +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(aes(colour = Habitat), method = "lm", formula = y ~ poly(x,2), se = F, size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+                 aes(colour = Habitat, label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+  stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(colour = Habitat, label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+
+#Set factors for spring-only data frame (This may change if I clean up the original)
+#The sediment parameters were measured in spring 2015, so this data set includes matching BGC
+#parameters from only spring 2015
+spring <- add.age(spring)
+spring$Age <- as.numeric(spring$Age)
+spring$Site <- factor(spring$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+spring$Habitat <- factor(spring$Habitat, levels = c("oyster", "marsh", "ref"))
+
+spring <- add.age(spring)
+spring$Age <- as.numeric(spring$Age)
+
+#Melt the spring data frame as before
+melted.spring <- melt(spring, measure.vars = c("Inundation", "PercentC", "PercentN", "CtoN", "BulkDensity", "SpringPercentOM", "SpringSOD", "SpringO2", "SpringN2"))
+
+melted.spring <- na.omit(melted.spring)
+
+#Graph restoration trajectory of spring only values as before
+#Bulk density, %C, %N, %OM, SOD, [O2] all look good re: R2 and p-values
+melted.spring %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), size = 1) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+   stat_fit_glance(method = "lm",
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+```
+
+Cleaned-up versions of the above data exploration.
+``` {r thesis.figs}
+
+#Creating a new melted dataframe that does not include [O2], NOx flux, or NH3 flux
+melted.annual2 <- melted.annual[!melted.annual$variable == "O2conc", ]
+melted.annual2 <- melted.annual2[!melted.annual2$variable == "NOxFlux", ]
+melted.annual2 <- melted.annual2[!melted.annual2$variable == "NH3Flux", ]
+
+#The only sediment parameter that will be included in the regression graphs is bulk density
+#Add a column for Season to the sediment parameters dataframe and populate it with Spring
+#Rearrange columns so Season is 1st column per convention
+melted.sed$Season <- c("Spring")
+melted.sed2 <- melted.sed[, c("Season", "Site", "CoreName", "Habitat", "Age", "variable", "value")]
+
+#Extract only bulk density values from the sediment df and join it to the other df
+bulk.density <- melted.sed2[melted.sed2$variable == "BulkDensity", ]
+sed.join <- full_join(melted.annual2, bulk.density)
+
+#Reorder the variables for graph purposes and change the Ref label so they match
+sed.join$variable <- factor(sed.join$variable, levels = c("SOD", "PercentOM", "BulkDensity", "N2Flux"))
+sed.join$Habitat <- revalue(sed.join$Habitat, c("ref" = "Ref"))
+sed.join$Habitat <- factor(sed.join$Habitat, c("oyster", "marsh", "Ref"))
+
+#All data visualized with one regression line; not divided by habitat
+#Includes every season of data for SOD, %OM, and N2 flux
+#Includes ONLY spring 2015 for bulk density b/c that was the only season measured
+sed.join %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = quad.formula, size = 1) +
+  stat_poly_eq(formula = quad.formula,
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+
+#Same as above but visualized with a separate line for each habitat
+#Fitted with 2nd order polynomial equation
+#Looks like %OM may have a good story! Strong R2 and p values for all habitats
+sed.join %>%
+  ggplot(aes(Age, value, colour = Habitat)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = quad.formula, se = F, size = 1) +
+  stat_poly_eq(formula = quad.formula,
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+   stat_fit_glance(method = "lm",
+                   method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Only annual data (no bulk density) for summer, not divided by habitat
+sed.join %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth(method = "lm", formula = quad.formula, size = 1) +
+  stat_poly_eq(formula = quad.formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+               parse = T, label.y.npc = "top") +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+```
+
+
+Reading in the data files for each parameter that contain data for each physical core. This is the most basic level of data detail and can be useful for trying to understand trends without obscuring the potential influence of oddball data points.
+Data files are read in, then joined so that only matching data points to existing N2 flux data are included. Sequential joins are performed. The NA points are removed to get rid of LoRef & HiRef and Summer 2015 cores. The columns are then reorganized and everything is analyzed with a scatterplot matrix.
+``` {r combine.files}
+
+O2.concs <- read.csv("O2-conc\\clean\\O2-conc-by-core_with-summer15.csv", header = T, stringsAsFactors = F)
+
+SOD <- read.csv("SOD\\clean\\SOD-by-core_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+nutfluxes <- read.csv("nutrient-flux\\clean\\nutrient-flux-clean_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+N2flux <- read.csv("N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", header = T, stringsAsFactors = F)
+
+join1 <- left_join(N2flux, O2.concs)
+join2 <- left_join(join1, SOD)
+join3 <- left_join(join2, nutfluxes)
+
+final.join <- na.omit(join3)
+final.join <- final.join[c("Season", "Site", "CoreName", "CoreNo", "Habitat", "Age", "N2Flux", "O2conc", "SOD", "flux_Nox", "flux_NH3")]
+
+pairs(final.join[, 6:11], upper.panel = panel.cor)
+
+```
+
+Write csvs of data that had been compiled as a result of the above joins for use in PRIMER.
+``` {r export.csv}
+
+write.csv(final.join, "PRIMER\\clean\\biogeochem-characs_all-seasons_all-sites.csv", row.names = F)
+
+```

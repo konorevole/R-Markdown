@@ -36,6 +36,24 @@ add.age <- function(x){
                                  ifelse(Site == "NOAA", "7", "20"))))
 }
 
+#Function to add a column with #s for Season instead of words
+#Will probably be most useful for regression tree analysis
+#Input is the data frame, output is the same data frame with an additional column for season as #s
+season.numbers <- function(x){
+  mutate(x, SeasonNumber = ifelse(Season == "Summer" , 1,
+                             ifelse(Season == "Fall", 2,
+                                ifelse(Season == "Winter", 3, 4))))
+}
+
+#Function to add a column with #s for Habitat instead of words
+#Will probably be most useful for regression tree analysis
+#Input is the data frame, output is the same data frame with an additional column for habitat as #s
+habitat.numbers <- function(x){
+  mutate(x, HabitatNumber = ifelse(Habitat == "oyster" , 1,
+                                  ifelse(Habitat == "marsh", 2, 3)))
+}
+
+
 #Function to calculate the parameters needed when representing summarized data
 #Input is data frame, output is the same data frame with additional columns:
 #Sorting by the core type (ie LO), calculates average N2 flux, # of cores, stdev, and std error
