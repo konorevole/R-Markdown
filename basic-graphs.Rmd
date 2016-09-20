@@ -9,6 +9,9 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+This document creates basic graphs of parameters, including changes across seasons.
+Includes code for graphs of N2O across seasons.
+
 **Remember to set working directory**
 
 Load the packages needed for this analysis
@@ -26,9 +29,25 @@ source("functions.R")
 
 type.N2O <- read.csv("N2O\\clean\\N2O-by-type_all-seasons_all-sites.csv", header = T)
 
+annual <- read.csv("combined-data\\clean\\annual-params_all-seasons_all-sites.csv", header = T)
+
+DNF <- read.csv("N2-flux\\clean\\N2-flux-by-type_all-seasons_all-sites.csv", header = T)
+
+#Set basic factors, which converts Lo/Hi Ref and Summer 2015 to NAs
+DNF <- set.factors.basic(DNF)
+
+#Eliminate Lo/Hi Ref and Summer 2015 data
+DNF <- na.omit(DNF)
+
+#Add columns for age and habitat and set factors
+DNF <- add.age(DNF)
+DNF$Age <- as.numeric(DNF$Age)
+DNF <- add.habitat(DNF)
+DNF$Habitat <- factor(DNF$Habitat, levels = c("oyster", "marsh", "Ref"))
+
 ```
 
-``` {r graphs}
+``` {r N2O.graphs}
 
 type.N2O <- set.factors.basic(type.N2O)
 type.N2O <- add.habitat(type.N2O)
@@ -53,5 +72,55 @@ p1 <- ggplot(type.N2O, aes(Site, avg_N2OFlux))
 p1 + geom_bar(aes(fill = Habitat), stat = "identity", position = "dodge") +
   facet_grid(. ~ Season)
 
+
+```
+
+``` {r DNF.prep}
+
+core.DNF <- read.csv("N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", header = T)
+
+#Eliminate Summer 2015 and Lo/Hi Ref data
+core.DNF <- core.DNF[!core.DNF$Season == "Summer15", ]
+core.DNF <- core.DNF[!core.DNF$CoreName == "LoRef", ]
+core.DNF <- core.DNF[!core.DNF$CoreName == "HiRef", ]
+
+#Reset the habitat levels to allow for sandflat
+core.DNF$Habitat <- factor(core.DNF$Habitat, levels = c("oyster", "marsh", "Ref", "sandflat"))
+
+#Create list of rows with Ref habitats and then replace that with sandflat
+sub1 <- which(core.DNF$Habitat == "Ref")
+core.DNF$Habitat[sub1] <- "sandflat"
+
+#Create new data frame with stats relevant to graphing
+avg_DNF <- ddply(core.DNF, .(Site, Season, Habitat), summarise,
+                 avg_DNF = mean(N2Flux),
+                 sd_DNF = sd(N2Flux),
+                 N = length(N2Flux),
+                 se_DNF = sd_DNF / N)
+
+#Add age and adjust all the factor levels
+avg_DNF <- add.age(avg_DNF)
+avg_DNF$Age <- as.numeric(avg_DNF$Age)
+avg_DNF$Season <- factor(avg_DNF$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+avg_DNF$Site <- factor(avg_DNF$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+avg_DNF$Habitat <- factor(avg_DNF$Habitat, levels = c("oyster", "marsh", "sandflat"))
+
+```
+
+``` {r DNF.graphs}
+
+avg_DNF %>%
+  filter(Season == "Spring") %>%
+  ggplot(aes(Habitat, avg_DNF, fill = Site)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymax = avg_DNF + se_DNF, ymin = avg_DNF - se_DNF), width = 0.3,
+                position = position_dodge(0.9))
+
+avg_DNF %>%
+  ggplot(aes(Habitat, avg_DNF, fill = Season)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymax = avg_DNF + se_DNF, ymin = avg_DNF - se_DNF), width = 0.3,
+                position = position_dodge(0.9)) +
+  facet_grid(Site ~ .)
 
 ```

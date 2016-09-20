@@ -69,17 +69,33 @@ m5$Habitat <- factor(m5$Habitat, levels = c("oyster", "marsh", "Ref"))
 #Should only get rid of Summer 2015 rows
 master <- na.omit(m5)
 
+#Reorder the columns
+master <- master[c("Season", "Site", "Age", "CoreName", "Habitat",  "avg_N2Flux", "Perc_Inun", "avg_PercentOM", "avg_SOD", "avg_O2conc", "avg_flux_NOx", "avg_flux_NH3")]
+
+#Rename the columns so they're less bulky
+master <- plyr::rename(master, c("avg_N2Flux" = "N2flux", "Perc_Inun" = "Inund", "avg_PercentOM" = "SOM", "avg_SOD" = "SOD", "avg_O2conc" = "O2conc", "avg_flux_NOx" = "NOxflux", "avg_flux_NH3" = "NH3flux"))
+
+```
+
+OPTIONAL: Export csv of combined data for analysis in other scripts. Mostly useful for avoiding repetition and also developing errrors. Writing csv here so
+``` {r export.data}
+
+write.csv(master, "combined-data\\clean\\annual-params_all-seasons_all-sites.csv", row.names = F)
+
+```
+
+Making modifications to the merged data. This is mostly separated so that a basic csv can be created in above chunk. This code adds columns converting Season & Habitat to #s, and subsets the seasons and sites for separate regression trees.
+``` {r modify.merge}
+
 #Use functions I wrote to add columns with Habitat & Season represented by #s
 #Just in case rpart was tempted to do something weird with the characters
 master <- season.numbers(master)
 master <- habitat.numbers(master)
 
 #Reorder the columns
-master <- master[c("Season", "SeasonNumber", "Site", "Age", "CoreName", "Habitat", "HabitatNumber",  "avg_N2Flux", "Perc_Inun", "avg_PercentOM", "avg_SOD", "avg_O2conc", "avg_flux_NOx", "avg_flux_NH3")]
+master <- master[c("Season", "SeasonNumber", "Site", "Age", "CoreName", "Habitat", "HabitatNumber",  "N2flux", "Inund", "SOM", "SOD", "O2conc", "NOxflux", "NH3flux")]
 
-#Rename the columns so they're less bulky
-master <- plyr::rename(master, c("avg_N2Flux" = "N2flux", "Perc_Inun" = "Inund", "avg_PercentOM" = "SOM", "avg_SOD" = "SOD", "avg_O2conc" = "O2conc", "avg_flux_NOx" = "NOxflux", "avg_flux_NH3" = "NH3flux"))
-
+#Create separate dataframes for each season and site
 summer <- master[master$Season == "Summer", ]
 fall <- master[master$Season == "Fall", ]
 winter <- master[master$Season == "Winter", ]
@@ -106,7 +122,11 @@ par(mfrow = c(1,2))
 pruned.all <- prune(fit.all, cp = 0.04)
 plot(pruned.all, uniform = T)
 text(pruned.all, use.n = T, all = T, cex = 0.8)
+summary(pruned.all)
 
+#Try ANOVA with SOD
+#Run a regression tree for each season including AGE (bc season is such a big driver it could swamp other factors)
+#IF SOD consistently drives everything, can be more confident
 
 fit.BCG <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = master)
 summary(fit.BCG)
@@ -125,13 +145,16 @@ text(fit.BCG, use.n = T, all = T, cex = 0.8)
 
 #In this case, the corresponding CP was 0.0417 (3 splits, so 4 nodes).
 pruned.BCG <- prune(fit.BCG, cp = 0.04)
+par(mfrow = c(1,1))
 plot(pruned.BCG, uniform = T)
-text(pruned.BCG, use.n = T, all = T, cex = 0.8)
+text(pruned.BCG, use.n = T, all = T, cex = 0.9)
+summary(pruned.BCG)
+prp(pruned.BCG)
 
 
 rsq.rpart(pruned.BCG)
 
-summer.tree <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = summer)
+summer.tree <- rpart(N2flux ~ Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = summer)
 
 summer.tree$cptable
 summer.prune <- prune(summer.tree, cp = summer.tree$cptable[which.min(summer.tree$cptable[ ,"xerror"]), "CP"])
@@ -146,15 +169,15 @@ plot(summer.tree, uniform = T)
 text(summer.tree, use.n = T, all = T, cex = 0.8)
 
 
-fall.tree <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = fall, control = rpart.control(minsplit = 8))
+fall.tree <- rpart(N2flux ~ Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = fall)
 
 prp(fall.tree)
 
-winter.tree <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = winter, control = rpart.control(minsplit = 8))
+winter.tree <- rpart(N2flux ~ Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = winter)
 
 prp(winter.tree)
 
-spring.tree <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = spring, control = rpart.control(minsplit = 8))
+spring.tree <- rpart(N2flux ~ Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = spring)
 
 prp(spring.tree)
 
@@ -171,5 +194,6 @@ Army.tree <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, meth
 prp(Army.tree)
 
 ```
+
 
 
