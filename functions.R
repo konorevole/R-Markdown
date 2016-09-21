@@ -25,7 +25,18 @@ add.habitat <- function(x){
   mutate(x, Habitat = ifelse(CoreName == "LO" | CoreName == "HO", "oyster",
                                   ifelse(CoreName == "LM" | CoreName == "MM" | CoreName == "HM", "marsh",
                                          as.character(CoreName))))
-  }
+}
+
+#Function to add a column for habitat with Sandflat instead of Ref/LoRef/HiRef
+#Note that this works best if Lo/Hi Ref eliminated before running, b/c add.habitat function
+#will copy over the Lo/Hi Ref label
+#Input is the data frame, output is the same data frame with an additional column for habitat + sandflat
+#Need to set the factors explicitly in script after
+add.sandflat <- function(x){
+  mutate(x, Habitat = ifelse(CoreName == "LO" | CoreName == "HO", "oyster",
+                             ifelse(CoreName == "LM" | CoreName == "MM" | CoreName == "HM", "marsh",
+                                    "sandflat")))
+}
 
 #Function to add a column for restored age
 #Input is the data frame, output is the same data frame with an additional column for age

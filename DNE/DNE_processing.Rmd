@@ -55,6 +55,9 @@ DNE.calcs <- combined.flux %>%
     DNE = (positive.N2 / (positive.N2 + positive.DIN) * 100)
   )
 
+#Checking for cores that have a DNE of 0, meaning positive DNF and negative N2
+no.efficiency <- which(DNE.calcs$flux_DIN > 0 & DNE.calcs$N2Flux < 0)
+
 keeps <- c("Season", "Site", "CoreName", "CoreNo", "DNE")
 DNE.final <- DNE.calcs[keeps]
 

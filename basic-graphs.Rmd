@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 This document creates basic graphs of parameters, including changes across seasons.
-Includes code for graphs of N2O across seasons.
+Includes code for graphs of N2 flux, denitrification efficiency, N2O, 
 
 **Remember to set working directory**
 
@@ -47,34 +47,7 @@ DNF$Habitat <- factor(DNF$Habitat, levels = c("oyster", "marsh", "Ref"))
 
 ```
 
-``` {r N2O.graphs}
-
-type.N2O <- set.factors.basic(type.N2O)
-type.N2O <- add.habitat(type.N2O)
-type.N2O$Habitat <- factor(type.N2O$Habitat, levels = c("oyster", "marsh", "Ref"))
-
-type.N2O %>%
-  group_by(Habitat) %>%
-  ggplot(aes(Site, avg_N2OFlux, fill = Habitat)) +
-  stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
-  stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3) +
-  facet_grid(. ~ Season)
-
-all.concs %>%
-  #filter(Site == "NOAA") %>%
-  group_by(Season, CoreName) %>%
-  ggplot(aes(CoreName, uM_NH3, fill = Season)) +
-  stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
-  stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3) +
-  facet_grid(Site ~ .)
-
-p1 <- ggplot(type.N2O, aes(Site, avg_N2OFlux))
-p1 + geom_bar(aes(fill = Habitat), stat = "identity", position = "dodge") +
-  facet_grid(. ~ Season)
-
-
-```
-
+Preparing the N2 flux data for graphing. Includes eliminating Summer 2015 and Lo/Hi Ref, replacing reference labels with sandflat, setting factors correctly, and summarizing data for graphing purposes (ie standard error).
 ``` {r DNF.prep}
 
 core.DNF <- read.csv("N2-flux\\clean\\N2-flux-by-core_with-summer15.csv", header = T)
@@ -107,20 +80,132 @@ avg_DNF$Habitat <- factor(avg_DNF$Habitat, levels = c("oyster", "marsh", "sandfl
 
 ```
 
+Plotting bar graphs of denitrification across seasons and sites by habitat.
 ``` {r DNF.graphs}
 
 avg_DNF %>%
-  filter(Season == "Spring") %>%
+  filter(Season == "Summer") %>%
   ggplot(aes(Habitat, avg_DNF, fill = Site)) +
   geom_bar(stat = "identity", position = "dodge") +
   geom_errorbar(aes(ymax = avg_DNF + se_DNF, ymin = avg_DNF - se_DNF), width = 0.3,
                 position = position_dodge(0.9))
 
 avg_DNF %>%
+  filter(Site == "IMS") %>%
   ggplot(aes(Habitat, avg_DNF, fill = Season)) +
   geom_bar(stat = "identity", position = "dodge") +
   geom_errorbar(aes(ymax = avg_DNF + se_DNF, ymin = avg_DNF - se_DNF), width = 0.3,
                 position = position_dodge(0.9)) +
+  scale_fill_manual(values = c("darkgoldenrod1", "darkred", "darkblue", "darkgreen"))
+
+avg_DNF %>%
+  ggplot(aes(Habitat, avg_DNF, fill = Season)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymax = avg_DNF + se_DNF, ymin = avg_DNF - se_DNF), width = 0.3,
+                position = position_dodge(0.9)) +
+  ylab("Average N2 flux") +
   facet_grid(Site ~ .)
 
 ```
+
+Preparing the denitrification efficiency data for graphing as above. Ultimately creating data frames with sets of average DNE by habitat by season by site, and an annual DNE by habitat by site.
+``` {r efficiency.prep}
+
+all.eff <- read.csv("DNE\\clean\\DNE-clean_no-summer15_all-sites.csv", header = T)
+
+#Eliminate Summer 2015 and Lo/Hi Ref data
+core.eff <- all.eff[!all.eff$CoreName == "LoRef", ]
+core.eff <- core.eff[!core.eff$CoreName == "HiRef", ]
+
+#Renumbers row names after subsetting so there aren't gaps
+rownames(core.eff) <- NULL
+
+#Assign 0 to Winter Carrot Reference 1 AS A PLACEHOLDER!!
+#This does NOT mean 0 efficiency for real. This is the only set of cores that did not have a valid
+#efficiency; ie there were negative DIN and N2 fluxes. In order for ggplot to leave a space in the
+#bar graph, there needs to be some value there.
+core.eff$DNE[159] <- 0
+
+#Eliminate NAs, which were built into the clean data file
+core.eff <- na.omit(core.eff)
+
+core.eff <- set.factors.basic(core.eff)
+
+#Add column for habitat with sandflat instead of Ref, and set factors
+core.eff <- add.sandflat(core.eff)
+core.eff$Habitat <- factor(core.eff$Habitat, levels = c("oyster", "marsh", "sandflat"))
+
+#Calculate stats for graphing purposes
+avg_eff <- ddply(core.eff, .(Site, Season, Habitat), summarise,
+                 avg_eff = mean(DNE),
+                 sd_eff = sd(DNE),
+                 N = length(DNE),
+                 se_eff = sd_eff / N)
+
+annual_eff <- ddply(core.eff, .(Site, Habitat), summarise,
+                    annual_eff = mean(DNE),
+                    sd_eff = sd(DNE),
+                    N = length(DNE),
+                    se_eff = sd_eff / N)
+
+```
+
+Plotting bar graphs of DNF efficiency across seasons and sites by habitat. Also annual averages by habitat and site.
+``` {r efficiency.graphs}
+
+#Bar graph of DNE over seasons by habitat. Faceted by site.
+avg_eff %>%
+  ggplot(aes(Habitat, avg_eff, fill = Season)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymax = avg_eff + se_eff, ymin = avg_eff - se_eff), width = 0.3,
+                position = position_dodge(0.9)) +
+  ylab("Average denitrification efficiency (%)") +
+  scale_fill_manual(values = c("darkgoldenrod1", "darkred", "darkblue", "darkgreen"), drop = F) +
+  facet_grid(Site ~ .) 
+
+#Bar graph of DNE over restored age by habitat.
+annual_eff %>%
+  ggplot(aes(Habitat, annual_eff, fill = Site)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymax = annual_eff + se_eff, ymin = annual_eff - se_eff), width = 0.3,
+                position = position_dodge(0.9)) +
+  ylab("Average denitrification efficiency (%)")
+
+avg_DNF %>%
+  filter(Site == "IMS") %>%
+  ggplot(aes(Habitat, avg_DNF, fill = Season)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymax = avg_DNF + se_DNF, ymin = avg_DNF - se_DNF), width = 0.3,
+                position = position_dodge(0.9)) +
+  scale_fill_manual(values = c("darkgoldenrod1", "darkred", "darkblue", "darkgreen"))
+
+```
+
+``` {r N2O.graphs}
+
+type.N2O <- set.factors.basic(type.N2O)
+type.N2O <- add.habitat(type.N2O)
+type.N2O$Habitat <- factor(type.N2O$Habitat, levels = c("oyster", "marsh", "Ref"))
+
+type.N2O %>%
+  group_by(Habitat) %>%
+  ggplot(aes(Site, avg_N2OFlux, fill = Habitat)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
+  stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3) +
+  facet_grid(. ~ Season)
+
+all.concs %>%
+  #filter(Site == "NOAA") %>%
+  group_by(Season, CoreName) %>%
+  ggplot(aes(CoreName, uM_NH3, fill = Season)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
+  stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3) +
+  facet_grid(Site ~ .)
+
+p1 <- ggplot(type.N2O, aes(Site, avg_N2OFlux))
+p1 + geom_bar(aes(fill = Habitat), stat = "identity", position = "dodge") +
+  facet_grid(. ~ Season)
+
+
+```
+
