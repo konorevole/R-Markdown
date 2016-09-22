@@ -47,6 +47,10 @@ DNF$Age <- as.numeric(DNF$Age)
 DNF <- add.habitat(DNF)
 DNF$Habitat <- factor(DNF$Habitat, levels = c("oyster", "marsh", "Ref"))
 
+filtration <- read.csv("oyster-stem\\raw\\oyster-filtration_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+stem.density <- read.csv("oyster-stem\\raw\\stem-density_annual_all-sites.csv", header = T, stringsAsFactors = F)
+
 ```
 
 Preparing the N2 flux data for graphing. Includes eliminating Summer 2015 and Lo/Hi Ref, replacing reference labels with sandflat, setting factors correctly, and summarizing data for graphing purposes (ie standard error).
@@ -183,6 +187,7 @@ avg_DNF %>%
 
 ```
 
+Prepping N2O data for graphing through aggregation on various levels and setting factors appropriately.
 ``` {r N2O.prep}
 
 #Calculate summary stats for graphing N2O
@@ -215,7 +220,7 @@ type.N2O$Habitat <- factor(type.N2O$Habitat, levels = c("oyster", "marsh", "sand
 
 ```
 
-
+Graphs visualizing N2O flux across seasons and annually.
 ``` {r N2O.graphs}
 
 #Plot of N2O flux by season, with error bars
@@ -249,6 +254,23 @@ p2 + geom_bar(stat = "identity", position = "dodge") +
   geom_errorbar(aes(ymin = annual_N2O - se, ymax = annual_N2O + se), position = position_dodge(0.9), width = 0.3)
 
 ```
+
+Graphs of oyster filtration and stem grass density.
+``` {r oyster.stem.graphs}
+
+filtration$Site <- factor(filtration$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+filtration$Season <- factor(filtration$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+stem.density$Site <- factor(stem.density$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+
+#Graph of oyster filtration by site, color coded by season
+oyster.p1 <- ggplot(filtration, aes(Site, filtration, fill = Season))
+oyster.p1 + geom_bar(stat = "identity", position = "dodge")
+
+stem.p1 <- ggplot(stem.density, aes(Site, adj_density, fill = Site))
+stem.p1 + stat_summary(fun.y = mean, geom = "bar", position = "dodge")
+
+```
+
 
 ``` {r idk}
 

@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This document creates graphs of combined data sets. A running tally of what it includes: DNE in comparison to other site parameters,
+This document creates graphs of combined data sets. A running tally of what it includes: DNE in comparison to other site parameters, oyster filtration & marsh grass stem density, 
 
 **Remember to set working directory**
 
@@ -30,6 +30,10 @@ Read in csv data.
 annual <- read.csv("combined-data\\clean\\annual-params_all-seasons_all-sites.csv", header = T)
 
 DNE <- read.csv("combined-data\\clean\\DNE-prepped-for-graphing_all-seasons_all-sites.csv", header = T)
+
+filtration <- read.csv("oyster-stem\\raw\\oyster-filtration_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+stem.density <- read.csv("oyster-stem\\raw\\stem-density_annual_all-sites.csv", header = T, stringsAsFactors = F)
 
 ```
 
@@ -142,4 +146,116 @@ p5 + geom_point() +
                   label.x.npc = "right")
 
 ```
+
+Preparing oyster filtration & marsh grass density data for graphing. Involves lots of averaging and creating data frames that match up correctly on varying levels of resolution. This is more limited than usual because the oyster and marsh physical info was only collected for one season.
+``` {r prep.oyster.marsh}
+
+filtration$Site <- factor(filtration$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+filtration$Season <- factor(filtration$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+stem.density$Site <- factor(stem.density$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+stem.density$CoreName <- factor(stem.density$CoreName, levels = c("LM", "MM", "HM"))
+
+#### STARTING WITH OYSTER FILTRATION DATA ####
+
+#Subsetting only data for oyster cores only from annual data set and resetting the row #s
+annual.oyster <- annual[annual$Habitat == "oyster", ]
+rownames(annual.oyster) <- NULL
+
+#Creating seasonal averages of N2 flux for the oyster cores
+#Added N column temporarily to check that it's calculating correctly-- probably need some kind of
+#built-in checking system in future...
+annual.oyster2 <- ddply(annual.oyster, .(Season, Site), summarise,
+                       N2Flux = mean(N2flux),
+                       avg_SOM = mean(SOM),
+                       NH3Flux = mean(NH3flux))
+
+#Creating data frame with N2 flux and oyster filtration for each season at each site
+filt.combo <- merge(x = filtration, y = annual.oyster2, by = c("Site", "Season"))
+
+##### MARSH GRASS STEM DENSITY DATA ######
+
+#Subset the marsh habitat cores and get rid of row #s
+annual.marsh <- annual[annual$Habitat == "marsh", ]
+rownames(annual.marsh) <- NULL
+
+#Calculate annual average parameters at each site
+annual.marsh2 <- ddply(annual.marsh, .(Site), summarise,
+                       N2Flux = mean(N2flux),
+                       marsh_SOM = mean(SOM),
+                       marsh_O2 = mean(O2conc))
+
+#Calculate average stem density at each site
+stem.avgs <- ddply(stem.density, .(Site), summarise,
+                   avg_density = mean(adj_density))
+
+#Merge the stem density and other site parameter data frames by site
+stem.combo <- merge(x = stem.avgs, y = annual.marsh2, by = "Site")
+
+###### Below code calculates stem density and other site parameters including CORE NAME to explore the
+###### different elevations involved
+
+#Calculate the average IMS stem density (b/c there's only one elevation, MM, so it doesn't make sense
+#to just have all the data duplicated)
+IMS.avg <- stem.density %>%
+  filter(Site == "IMS") %>%
+  summarise(total = mean(adj_density))
+
+#Assign the average to the first line of IMS data, and delete the other 2 lines
+stem.density[1,3] <- IMS.avg
+stem.density <- stem.density[-c(2,3), ]
+
+#Calculate average stats based on core name at each site
+annual.marsh.core <- ddply(annual.marsh, .(Site, CoreName), summarise,
+                       N2Flux = mean(N2flux),
+                       marsh_SOM = mean(SOM),
+                       marsh_O2 = mean(O2conc))
+
+#Combine stem density & other site parameters based on core name and site
+stem.core.combo <- merge(x = stem.density, y = annual.marsh.core, by = c("Site", "CoreName"))
+
+```
+
+Graphs of oyster filtration and marsh grass density against other parameters.
+``` {r oyster.marsh.relationships}
+
+##### OYSTER FILTRATION ######
+
+#Comparing relationship between oyster filtration and N2 flux
+#Not much to go on really
+filt.p1 <- ggplot(filt.combo, aes(filtration, N2Flux, colour = Site))
+filt.p1 + geom_point()
+
+#Comparing NH3 flux to oyster filtration
+#Highest NH3 emissions are associated with lowest filtrations- but there are very few points
+filt.p2 <- ggplot(filt.combo, aes(filtration, NH3Flux, colour = Site))
+filt.p2 + geom_point()
+
+filt.p3 <- ggplot(filt.combo, aes(filtration, avg_SOM, colour = Site))
+filt.p3 + geom_point(size = 8)
+
+###### MARSH GRASS STEM DENSITY #####
+
+stem.p1 <- ggplot(stem.combo, aes(avg_density, N2Flux, colour = Site))
+stem.p1 + geom_point(size = 10)
+
+stem.p2 <- ggplot(stem.combo, aes(avg_density, marsh_SOM, colour = Site))
+stem.p2 + geom_point(size = 10)
+
+stem.p3 <- ggplot(stem.combo, aes(avg_density, marsh_O2, colour = Site))
+stem.p3 + geom_point(size = 10)
+
+
+#### Below graphs focus on the elevation as a potential driver of changes, since the marsh cores
+#were collected at 3 different elevations (LM, MM, HM)
+
+stem.core.combo %>%
+  ggplot(aes(adj_density, marsh_SOM, colour = Site)) +
+  geom_point(size = 6) +
+  facet_grid(CoreName ~ .)
+
+stem.p4 <- ggplot(stem.core.combo, aes(adj_density, marsh_SOM, colour = CoreName))
+stem.p4 + geom_point(size = 10)
+
+```
+
 
