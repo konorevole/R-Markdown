@@ -29,6 +29,8 @@ source("functions.R")
 
 type.N2O <- read.csv("N2O\\clean\\N2O-by-type_all-seasons_all-sites.csv", header = T)
 
+core.N2O <- read.csv("N2O\\clean\\N2O-by-core_all-seasons_all-sites.csv", header = T)
+
 annual <- read.csv("combined-data\\clean\\annual-params_all-seasons_all-sites.csv", header = T)
 
 DNF <- read.csv("N2-flux\\clean\\N2-flux-by-type_all-seasons_all-sites.csv", header = T)
@@ -181,12 +183,51 @@ avg_DNF %>%
 
 ```
 
+``` {r N2O.prep}
+
+#Calculate summary stats for graphing N2O
+core.N2O <- add.sandflat(core.N2O)
+
+N2O.avgs <- ddply(core.N2O, .(Season, Site, Habitat), summarise,
+                  avg_N2O = mean(N2O_flux),
+                  sd = sd(N2O_flux),
+                  N = length(N2O_flux),
+                  se = sd / N)
+
+N2O.avgs$Season <- factor(N2O.avgs$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+N2O.avgs$Site <- factor(N2O.avgs$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+N2O.avgs$Habitat <- factor(N2O.avgs$Habitat, levels = c("oyster", "marsh", "sandflat"))
+
+annual.N2O <- ddply(core.N2O, .(Site, Habitat), summarise,
+                  annual_N2O = mean(N2O_flux),
+                  sd = sd(N2O_flux),
+                  N = length(N2O_flux),
+                  se = sd / N)
+
+annual.N2O$Site <- factor(annual.N2O$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+annual.N2O$Habitat <- factor(annual.N2O$Habitat, levels = c("oyster", "marsh", "sandflat"))
+
+#Add column for habitat with sandflat instead of ref & set all factor levels
+type.N2O <- add.sandflat(type.N2O)
+type.N2O <- set.factors.basic(type.N2O)
+type.N2O$Habitat <- factor(type.N2O$Habitat, levels = c("oyster", "marsh", "sandflat"))
+
+
+```
+
+
 ``` {r N2O.graphs}
 
-type.N2O <- set.factors.basic(type.N2O)
-type.N2O <- add.habitat(type.N2O)
-type.N2O$Habitat <- factor(type.N2O$Habitat, levels = c("oyster", "marsh", "Ref"))
+#Plot of N2O flux by season, with error bars
+#Basically, flux is low
+p1 <- ggplot(N2O.avgs, aes(Site, avg_N2O, fill = Habitat))
+p1 + geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymin = avg_N2O - se, ymax = avg_N2O + se), position = position_dodge(0.9), width = 
+                  0.3) +
+  facet_grid(. ~ Season)
 
+#Same plot, but without labeled (not lined up right) and without error bars
+#Uses piping to group by habitat instead of calling on data frame with stats as p1
 type.N2O %>%
   group_by(Habitat) %>%
   ggplot(aes(Site, avg_N2OFlux, fill = Habitat)) +
@@ -194,18 +235,38 @@ type.N2O %>%
   stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3) +
   facet_grid(. ~ Season)
 
-all.concs %>%
+#Code for filtering by season and graphing N2O flux
+N2O.avgs %>%
+  group_by(Habitat) %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Site, avg_N2O, fill = Habitat)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
+  stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3, vjust = -0.5)
+
+#Annual averages of N2O flux, with error bars, color coded by habitat
+p2 <- ggplot(annual.N2O, aes(Site, annual_N2O, fill = Habitat))
+p2 + geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymin = annual_N2O - se, ymax = annual_N2O + se), position = position_dodge(0.9), width = 0.3)
+
+```
+
+``` {r idk}
+
+annual %>%
   #filter(Site == "NOAA") %>%
   group_by(Season, CoreName) %>%
-  ggplot(aes(CoreName, uM_NH3, fill = Season)) +
+  ggplot(aes(CoreName, NH3flux, fill = Season)) +
   stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
   stat_summary(aes(label = round(..y.., 2)), fun.y = mean, geom = "text", size = 3) +
   facet_grid(Site ~ .)
 
-p1 <- ggplot(type.N2O, aes(Site, avg_N2OFlux))
-p1 + geom_bar(aes(fill = Habitat), stat = "identity", position = "dodge") +
-  facet_grid(. ~ Season)
 
+```
+
+OPTIONAL: writing csvs of data packaged above. Includes DNE
+``` {r data.export}
+
+write.csv(avg_eff, "combined-data\\clean\\DNE-prepped-for-graphing_all-seasons_all-sites.csv", row.names = F)
 
 ```
 

@@ -1,0 +1,145 @@
+---
+title: "combo-graphs"
+author: "Kathleen Onorevole"
+date: "September 21, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This document creates graphs of combined data sets. A running tally of what it includes: DNE in comparison to other site parameters,
+
+**Remember to set working directory**
+
+Loads packages and functions needed for this analysis.
+``` {r libraries}
+
+library("plyr")
+library("dplyr")
+library("ggplot2")
+library("ggpmisc")
+
+source("functions.R")
+```
+
+Read in csv data.
+``` {r load.data}
+
+annual <- read.csv("combined-data\\clean\\annual-params_all-seasons_all-sites.csv", header = T)
+
+DNE <- read.csv("combined-data\\clean\\DNE-prepped-for-graphing_all-seasons_all-sites.csv", header = T)
+
+```
+
+Prepare data for DNE analysis by averaging the other parameters (SOM, SOD, inundation, NH3 flux) and combining that data frame with the one for DNE. Also creating a data frame with annual averages for DNE and other site parameters.
+``` {r prep.DNE}
+
+#Convert Ref label to sandflat in annual dataset
+annual.sandflat <- add.sandflat(annual)
+
+#Avering SOD, SOM, and inundation for each habitat type per season & site
+habitat.avgs <- ddply(annual.sandflat, .(Season, Site, Habitat), summarise,
+                    avg_SOD = mean(SOD),
+                    avg_SOM = mean(SOM),
+                    avg_inund = mean(Inund),
+                    avg_NH3 = mean(NH3flux))
+
+#Merging the averaged SOD with the pre-averaged DNE for graphing
+DNE.merge <- merge(habitat.avgs, DNE, by = c("Season", "Site", "Habitat"), all.x = T, sort = F)
+
+#Create data frame of annual averages
+annual.DNE.merge <- ddply(DNE.merge, .(Site, Habitat), summarise,
+                          annual_SOD = mean(avg_SOD),
+                          annual_SOM = mean(avg_SOM),
+                          annual_inund = mean(avg_inund),
+                          annual_eff = mean(avg_eff),
+                          annual_NH3 = mean(avg_NH3))
+
+```
+
+Graphing DNE in relationship to other factors, such as SOM, SOD, inundation, and NH3 flux. Graphs are on a seasonal and annual basis.
+``` {r DNE.relationships}
+
+#Formula for 2nd order polynomial equation
+quad.formula <- y ~ poly(x,2)
+
+#For SOD vs DNE by habitat, log relationship or 4th order polynomial is good, esp for sandflat
+#Basically, DNE is not crashing when SOD increases, so it's not like you're burning out your system
+#of DNF efficiency just b/c there's more microbial activity
+p1 <- ggplot(DNE.merge, aes(avg_SOD, avg_eff, colour = Habitat))
+p1 + geom_point() +
+  geom_smooth(aes(group = Habitat), method = "lm", formula = y ~ log(x), se = F, size = 1) +
+  stat_poly_eq(formula = y ~ log(x),
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = y ~ log(x)),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Relationship b/t SOD and DNE during summer only seems to suggest decrease for oysters,
+#stable conditions for sandflat, parabola for marsh
+DNE.merge %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(avg_SOD, avg_eff, colour = Habitat)) +
+  geom_point()
+
+#No solid relationship when SOM vs DNE divided by habitat
+#For SOM vs DNE by Site, log relationship looks good: all but Carrot have p ~ = 0.06
+p2 <- ggplot(DNE.merge, aes(avg_SOM, avg_eff, colour = Season))
+p2 + geom_point() +
+  geom_smooth(aes(group = Season), method = "lm", formula = y ~ log(x), se = F, size = 1) +
+  stat_poly_eq(formula = y ~ log(x),
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = y ~ log(x)),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#It does appear that there is a decrease in efficiency as SOM increases, at least in oysters,
+#during the summer
+DNE.merge %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(avg_SOM, avg_eff, colour = Habitat)) +
+  geom_point()
+
+#This is a more relevant question: as SOM increases, are you also increasing NH3 production?
+#Because that would be an ecosystem disservice that we want to avoid, even if SOM is also increasing DNF
+#This plot shows no- it's basically a flat line relationship as SOM increases
+DNE.merge %>%
+  ggplot(aes(avg_SOM, avg_NH3, colour = Habitat)) +
+  geom_point()
+
+#Same lack of result for SOD vs NH3
+DNE.merge %>%
+  ggplot(aes(avg_SOD, avg_NH3, colour = Site)) +
+  geom_point()
+
+#Also no real relationship between NH3 and SOM during the summer (which is more relevant b/c of the
+#summer SOM/DNF relationship)
+DNE.merge %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(avg_SOM, avg_NH3, colour = Habitat)) +
+  geom_point()
+
+#Increasing inundation seems to generally increase efficiency
+p4 <- ggplot(DNE.merge, aes(avg_inund, avg_eff, colour = Season))
+p4 + geom_point()
+
+#On an annual basis, increasing SOD is NOT decreasing efficiency
+p5 <- ggplot(annual.DNE.merge, aes(annual_SOD, annual_eff, colour = Habitat))
+p5 + geom_point() +
+  geom_smooth(aes(group = Habitat), method = "lm", formula = y ~ x, se = F, size = 1) +
+  stat_poly_eq(formula = quad.formula,
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = y ~ x),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+```
+
