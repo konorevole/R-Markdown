@@ -35,6 +35,8 @@ annual <- read.csv("combined-data\\clean\\annual-params_all-seasons_all-sites.cs
 
 DNF <- read.csv("N2-flux\\clean\\N2-flux-by-type_all-seasons_all-sites.csv", header = T)
 
+SOD <- read.csv("SOD\\clean\\SOD-by-core_all-seasons_all-sites.csv", header = T)
+
 #Set basic factors, which converts Lo/Hi Ref and Summer 2015 to NAs
 DNF <- set.factors.basic(DNF)
 
@@ -268,6 +270,20 @@ oyster.p1 + geom_bar(stat = "identity", position = "dodge")
 
 stem.p1 <- ggplot(stem.density, aes(Site, adj_density, fill = Site))
 stem.p1 + stat_summary(fun.y = mean, geom = "bar", position = "dodge")
+
+```
+
+``` {r SOD.anovas}
+
+hist(SOD$SOD)
+Habitat.anova <- aov(SOD ~ Habitat, data = SOD)
+summary(Habitat.anova)
+
+Site.anova <- aov(SOD ~ Site, data = SOD)
+summary(Site.anova)
+
+all.SOD.anova <- aov(SOD ~ Season * Site * Habitat, data = SOD)
+summary(all.SOD.anova)
 
 ```
 

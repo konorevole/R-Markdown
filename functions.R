@@ -17,6 +17,15 @@ set.factors.basic <- function(x){
   return(x)
 }
 
+#Modified version of set.factors.basic that addresses the factor levels more commonly used in the thesis
+#Habitat includes SANDFLAT not reference!!
+#Note that this does not include core names, which were generally dropped for thesis
+set.factors.habitat <- function(x){
+  x$Season <- factor(x$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
+  x$Site <- factor(x$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+  x$Habitat <- factor(x$Habitat, levels = c("oyster", "marsh", "sandflat"))
+  return(x)
+}
 
 #Function to add a column for habitat.
 #Input is the data frame, output is the same data frame with an additional column for habitat.

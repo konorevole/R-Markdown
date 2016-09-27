@@ -35,20 +35,34 @@ filtration <- read.csv("oyster-stem\\raw\\oyster-filtration_all-seasons_all-site
 
 stem.density <- read.csv("oyster-stem\\raw\\stem-density_annual_all-sites.csv", header = T, stringsAsFactors = F)
 
+N2O <- read.csv("N2O\\clean\\N2O-by-type_all-seasons_all-sites.csv", header = T)
+
 ```
 
-Prepare data for DNE analysis by averaging the other parameters (SOM, SOD, inundation, NH3 flux) and combining that data frame with the one for DNE. Also creating a data frame with annual averages for DNE and other site parameters.
-``` {r prep.DNE}
+General data prep relevant to many combo graphs.  Change reference to sandflat and create dataframe with habitat averages; set factors.
+``` {r general.prep}
 
 #Convert Ref label to sandflat in annual dataset
 annual.sandflat <- add.sandflat(annual)
+annual.sandflat <- set.factors(annual.sandflat)
+annual.sandflat$Habitat <- factor(annual.sandflat$Habitat, levels = c("oyster", "marsh", "sandflat"))
 
 #Avering SOD, SOM, and inundation for each habitat type per season & site
 habitat.avgs <- ddply(annual.sandflat, .(Season, Site, Habitat), summarise,
-                    avg_SOD = mean(SOD),
-                    avg_SOM = mean(SOM),
+                    avg_N2flux = mean(N2flux),
                     avg_inund = mean(Inund),
+                    avg_SOM = mean(SOM),
+                    avg_SOD = mean(SOD),
+                    avg_O2conc = mean(O2conc),
+                    avg_NOxflux = mean(NOxflux),
                     avg_NH3 = mean(NH3flux))
+
+habitat.avgs <- set.factors.habitat(habitat.avgs)
+
+```
+
+Prepare data for DNE analysis by combining the habitat average data frame with the one for DNE. Also creating a data frame with annual averages for DNE and other site parameters.
+``` {r prep.DNE}
 
 #Merging the averaged SOD with the pre-averaged DNE for graphing
 DNE.merge <- merge(habitat.avgs, DNE, by = c("Season", "Site", "Habitat"), all.x = T, sort = F)
@@ -167,6 +181,7 @@ rownames(annual.oyster) <- NULL
 annual.oyster2 <- ddply(annual.oyster, .(Season, Site), summarise,
                        N2Flux = mean(N2flux),
                        avg_SOM = mean(SOM),
+                       avg_SOD = mean(SOD),
                        NH3Flux = mean(NH3flux))
 
 #Creating data frame with N2 flux and oyster filtration for each season at each site
@@ -223,24 +238,40 @@ Graphs of oyster filtration and marsh grass density against other parameters.
 #Comparing relationship between oyster filtration and N2 flux
 #Not much to go on really
 filt.p1 <- ggplot(filt.combo, aes(filtration, N2Flux, colour = Site))
-filt.p1 + geom_point()
+filt.p1 + geom_point(size = 6)
 
 #Comparing NH3 flux to oyster filtration
 #Highest NH3 emissions are associated with lowest filtrations- but there are very few points
 filt.p2 <- ggplot(filt.combo, aes(filtration, NH3Flux, colour = Site))
-filt.p2 + geom_point()
+filt.p2 + geom_point(size = 6)
 
+#Filtration also doesn't seem linked to SOM
 filt.p3 <- ggplot(filt.combo, aes(filtration, avg_SOM, colour = Site))
 filt.p3 + geom_point(size = 8)
 
+filt.p4 <- ggplot(filt.combo, aes(filtration, avg_SOD, colour = Site))
+filt.p4 + geom_point(size = 8)
+
 ###### MARSH GRASS STEM DENSITY #####
 
+#Density and DNF don't look like anything much- just b/c you increase the grass density,
+#doesn't mean you're going to increase DNF (field of dreams restoration)
 stem.p1 <- ggplot(stem.combo, aes(avg_density, N2Flux, colour = Site))
-stem.p1 + geom_point(size = 10)
+stem.p1 + geom_point(size = 6)
 
+#But SOM and density are a straight line! Textbook! So other ecosystem services of restoration
 stem.p2 <- ggplot(stem.combo, aes(avg_density, marsh_SOM, colour = Site))
-stem.p2 + geom_point(size = 10)
+stem.p2 + geom_point(size = 6) +
+  geom_smooth(aes(group = 1), method = "lm", formula = y ~ x, se = F, size = 1) +
+  stat_poly_eq(formula = y ~ x,
+               aes(group = 1, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = y ~ x),
+                  geom = "text",
+                  aes(group = 1, label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
 
+#Density has no clear relationship with [O2]
 stem.p3 <- ggplot(stem.combo, aes(avg_density, marsh_O2, colour = Site))
 stem.p3 + geom_point(size = 10)
 
@@ -248,13 +279,83 @@ stem.p3 + geom_point(size = 10)
 #### Below graphs focus on the elevation as a potential driver of changes, since the marsh cores
 #were collected at 3 different elevations (LM, MM, HM)
 
+#No new trends when broken down by elevation, except that HM has a much higher density
 stem.core.combo %>%
   ggplot(aes(adj_density, marsh_SOM, colour = Site)) +
   geom_point(size = 6) +
   facet_grid(CoreName ~ .)
 
+#Including all elevations generally strengthens the relationship
 stem.p4 <- ggplot(stem.core.combo, aes(adj_density, marsh_SOM, colour = CoreName))
-stem.p4 + geom_point(size = 10)
+stem.p4 + geom_point(size = 6) +
+  geom_smooth(aes(group = 1), method = "lm", formula = y ~ x, se = F, size = 1) +
+  stat_poly_eq(formula = y ~ x,
+               aes(group = 1, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = y ~ x),
+                  geom = "text",
+                  aes(group = 1, label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Stem density by elevation vs N2 flux- no real trends, b/c Army is pretty much a flat line
+stem.p5 <- ggplot(stem.core.combo, aes(adj_density, N2Flux, colour = Site))
+stem.p5 + geom_point(size = 6)
+
+```
+
+Exploring relationship between N2 flux and other parameters: SOD, O2 concentration, nitroux oxide.
+``` {r N2flux.relationships}
+
+SOD.p1 <- ggplot(habitat.avgs, aes(avg_SOD, avg_N2flux, colour = Site))
+SOD.p1 + geom_point(size = 4)
+
+SOD.p2 <- ggplot(annual.sandflat, aes(SOD, N2flux, colour = Season))
+SOD.p2 + geom_point(size = 4)
+
+O2.p1 <- ggplot(annual.sandflat, aes(O2conc, N2flux, colour = Season))
+O2.p1 + geom_point(size = 4)
+
+```
+
+``` {r prep.N2O}
+
+N2O.merge <- merge(annual, N2O, by = c("Season", "Site", "CoreName"), all.x = T, sort = F)
+
+N2O.merge <- add.sandflat(N2O.merge)
+N2O.merge <- set.factors.habitat(N2O.merge)
+
+```
+
+``` {r N2O.relationships}
+
+#Graphing N2 vs N2O by season shows fall/winter significant and distinct from summer/spring
+N2O.p1 <- ggplot(N2O.merge, aes(N2flux, avg_N2OFlux, colour = Season))
+N2O.p1 + geom_point(size = 4) +
+  geom_smooth(aes(group = Season), method = "lm") +
+  stat_poly_eq(formula = y ~ x,
+               aes(group = Season, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = y ~ x),
+                  geom = "text",
+                  aes(group = Season, label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Graphing N2 vs N2O by site shows NOAA & Army significant but w/ opposite trends
+N2O.p2 <- ggplot(N2O.merge, aes(N2flux, avg_N2OFlux, colour = Site))
+N2O.p2 + geom_point(size = 4) +
+  geom_smooth(aes(group = Site), method = "lm") +
+  stat_poly_eq(formula = y ~ x,
+               aes(group = Site, label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = y ~ x),
+                  geom = "text",
+                  aes(group = Site, label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
+
+#Using facet grid to illustrate N2 vs N2O across sites, color coded by season
+N2O.p3 <- ggplot(N2O.merge, aes(N2flux, avg_N2OFlux, colour = Season))
+N2O.p3 + geom_point(size = 4) +
+  facet_grid(Site ~ .)
 
 ```
 

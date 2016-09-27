@@ -157,7 +157,7 @@ melted.annual %>%
 #Divided by season and visualized with a separate regression line for each habitat
 #Modify the season filter to show one season at a time; can also change the color of the pts
 melted.annual %>%
-  filter(Season == "Summer") %>%
+  filter(Season == "Spring") %>%
   ggplot(aes(Age, value, colour = Habitat)) +
   geom_point() +
   facet_grid(variable ~ ., scales = "free_y") +
