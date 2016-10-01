@@ -140,7 +140,7 @@ melted.annual %>%
 #Filter function to present each season individually; not divided by habitat
 #N2 flux results are interesting for Summer; no other seasons provide new info
 melted.annual %>%
-  filter(Season == "Summer") %>%
+  filter(Season == "Fall") %>%
   ggplot(aes(Age, value)) +
   geom_point() +
   facet_grid(variable ~ ., scales = "free_y") +
@@ -284,6 +284,84 @@ melted.spring %>%
                   label.x.npc = "right")
 
 ```
+
+``` {r defense.figs}
+
+#Annual N2 regression with age
+
+tiff("Annual N2 regression", width = 400, height = 160, units = "mm", res = 300, compression = "lzw")
+
+annual.data %>%
+  ggplot(aes(Age, N2Flux)) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  geom_point(size = 4) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 26),
+       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black")) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 2) +
+  xlab("Restored age (years)") +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol ", N[2], " ", m^2, " ", h^-1, ")"))) +
+  coord_cartesian(ylim = c(-10, 120)) +
+  scale_y_continuous(breaks = seq(-20, 120, 20))
+  
+dev.off()
+
+tiff("Summer N2 regression", width = 400, height = 160, units = "mm", res = 300, compression = "lzw")
+
+annual.data %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Age, N2Flux)) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  geom_point(size = 4) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 26),
+       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black")) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 2) +
+  xlab("Restored age (years)") +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol ", N[2], " ", m^2, " ", h^-1, ")"))) +
+  coord_cartesian(ylim = c(-10, 120)) +
+  scale_y_continuous(breaks = seq(-20, 120, 20))
+  
+dev.off()
+
+tiff("Fall N2 regression", width = 400, height = 160, units = "mm", res = 300, compression = "lzw")
+
+annual.data %>%
+  filter(Season == "Fall") %>%
+  ggplot(aes(Age, N2Flux)) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey13") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey13") +
+  geom_point(size = 4) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 26),
+       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black")) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 2) +
+  xlab("Restored age (years)") +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol ", N[2], " ", m^2, " ", h^-1, ")"))) +
+  coord_cartesian(ylim = c(-10, 120)) +
+  scale_y_continuous(breaks = seq(-20, 120, 20))
+  
+dev.off()
+
+```
+
 
 Cleaned-up versions of the above data exploration.
 ``` {r thesis.figs}
