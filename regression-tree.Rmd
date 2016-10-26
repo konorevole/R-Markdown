@@ -111,6 +111,7 @@ Army <- master[master$Site == "Army", ]
 Using master data frame to build regression tree.
 ```{r building.tree}
 
+#Creating a regression tree for all factors, including season, habitat, and age
 fit.all <- rpart(N2flux ~ SeasonNumber + HabitatNumber + Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = master)
 
 summary(fit.all)
@@ -119,15 +120,21 @@ text(fit.all, use.n = T, all = T, cex = 0.8)
 
 par(mfrow = c(1,2))
 
+#The tree should be pruned by consulting the cptable, included in summary. In the table, xerror = cross-validation error, xstd = standard deviation, & CP = complexity parameter (CP explains how much of the original variablility is predicted by the split). Ideally, there is what's called the 1-SE rule: find the lowest xerror, then add the corresponding xstd. The cp associated with the largest xerror that's smaller than the result should be used to prune the tree.
+
+#In this case, that's a split of 4 with cp=0.01. However, this did not prune the tree at all compared to the original, so I used the next smallest cp value, 0.04. I manually entered the pruning parameters rather than creating code- that's also an option.
+
 pruned.all <- prune(fit.all, cp = 0.04)
 plot(pruned.all, uniform = T)
 text(pruned.all, use.n = T, all = T, cex = 0.8)
 summary(pruned.all)
 
-#Try ANOVA with SOD
+#Rachel's comments: Try ANOVA with SOD
 #Run a regression tree for each season including AGE (bc season is such a big driver it could swamp other factors)
 #IF SOD consistently drives everything, can be more confident
 
+
+#Regression tree for all biogeochemical parameters (hence the name BCG), without season, habitat, or age.
 fit.BCG <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = master)
 summary(fit.BCG)
 fit.BCG
@@ -136,26 +143,21 @@ plotcp(fit.BCG)
 plot(fit.BCG, uniform = T)
 text(fit.BCG, use.n = T, all = T, cex = 0.8)
 
-#Research indicates that the tree should be pruned by consulting the cptable, included in summary
-#In the table, xerror = cross-validation error, xstd = standard deviation, & CP = complexity parameter
-#(CP explains how much of the original variablility is predicted by the split)
-#Ideally, there is what's called the 1-SE rule: find the lowest xerror, then add the corresponding
-#xstd. Look for the line in cptable that has the lowest # of splits with an xerror less than the
-#result of the addition. The CP of that row should be used to prune the tree.
-
-#In this case, the corresponding CP was 0.0417 (3 splits, so 4 nodes).
+#The 1-SE rule identified cp = 0.055, but that didn't prune the left branch of the tree. I decided to use the next smallest cp, 0.04.
 pruned.BCG <- prune(fit.BCG, cp = 0.04)
 par(mfrow = c(1,1))
 plot(pruned.BCG, uniform = T)
 text(pruned.BCG, use.n = T, all = T, cex = 0.9)
 summary(pruned.BCG)
-prp(pruned.BCG)
-
 
 rsq.rpart(pruned.BCG)
 
+
+#Creating separate regression trees for each season to explore whether temperature could be confounding the results, b/c temp is a driver of DNF.
+
 summer.tree <- rpart(N2flux ~ Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = summer)
 
+#An example of using code to ID the most appropriate cp
 summer.tree$cptable
 summer.prune <- prune(summer.tree, cp = summer.tree$cptable[which.min(summer.tree$cptable[ ,"xerror"]), "CP"])
 plot(summer.prune, uniform = T, main = "Pruned Regression Tree for Summer DNF Rates", cex = 0.5)
@@ -180,6 +182,8 @@ prp(winter.tree)
 spring.tree <- rpart(N2flux ~ Age + Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = spring)
 
 prp(spring.tree)
+
+#Creating separate trees for each site, mainly just to check the outcomes.
 
 IMS.tree <- rpart(N2flux ~ Inund + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = IMS, control = rpart.control(minsplit = 2))
 prp(IMS.tree)

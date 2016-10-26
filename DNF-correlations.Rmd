@@ -24,6 +24,7 @@ library("ggpmisc")
 library("lattice")
 library("grid")
 library("reshape2")
+library("RColorBrewer")
 
 source("functions.R")
 
@@ -70,7 +71,7 @@ pairs(annual.data[, 9:11], upper.panel = panel.cor)
 
 annual.data$Season <- factor(annual.data$Season, level = c("Summer", "Fall", "Winter", "Spring"))
 
-pairs(annual.data[annual.data$Season == "Spring", 5:11], upper.panel = panel.cor)
+pairs(annual.data[annual.data$Season == "Summer", 5:11], upper.panel = panel.cor)
 
 #Creating scatterplot matrix for only spring values (relevant for sediment parameters)
 spring.nona <- na.omit(spring)
@@ -140,7 +141,7 @@ melted.annual %>%
 #Filter function to present each season individually; not divided by habitat
 #N2 flux results are interesting for Summer; no other seasons provide new info
 melted.annual %>%
-  filter(Season == "Fall") %>%
+  filter(Season == "Summer") %>%
   ggplot(aes(Age, value)) +
   geom_point() +
   facet_grid(variable ~ ., scales = "free_y") +
@@ -288,8 +289,7 @@ melted.spring %>%
 ``` {r defense.figs}
 
 #Annual N2 regression with age
-
-tiff("Annual N2 regression", width = 400, height = 160, units = "mm", res = 300, compression = "lzw")
+tiff("Annual N2 regression", width = 500, height = 160, units = "mm", res = 300, compression = "lzw")
 
 annual.data %>%
   ggplot(aes(Age, N2Flux)) +
@@ -297,8 +297,8 @@ annual.data %>%
   geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
   geom_point(size = 4) +
   theme(panel.background = element_rect(fill = "white", colour = NA),
-       axis.title.x = element_text(margin = margin(t = 15), size = 26),
-       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
        axis.line.x = element_line(colour = "black", size = 0.8),
        axis.line.y = element_line(colour = "black", size = 0.8),
        panel.grid.major = element_line(colour = "grey70", size = 0.25),
@@ -306,13 +306,14 @@ annual.data %>%
        axis.text.y = element_text(size = 20, colour = "black")) +
   geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 2) +
   xlab("Restored age (years)") +
-  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol ", N[2], " ", m^2, " ", h^-1, ")"))) +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol N ", m^2, " ", h^-1, ")"))) +
   coord_cartesian(ylim = c(-10, 120)) +
   scale_y_continuous(breaks = seq(-20, 120, 20))
   
 dev.off()
 
-tiff("Summer N2 regression", width = 400, height = 160, units = "mm", res = 300, compression = "lzw")
+#Summer N2 vs age
+tiff("Summer N2 regression", width = 500, height = 160, units = "mm", res = 300, compression = "lzw")
 
 annual.data %>%
   filter(Season == "Summer") %>%
@@ -321,8 +322,33 @@ annual.data %>%
   geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
   geom_point(size = 4) +
   theme(panel.background = element_rect(fill = "white", colour = NA),
-       axis.title.x = element_text(margin = margin(t = 15), size = 26),
-       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black")) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 2) +
+  xlab("Restored age (years)") +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol N ", m^2, " ", h^-1, ")"))) +
+  coord_cartesian(ylim = c(-10, 120)) +
+  scale_y_continuous(breaks = seq(-20, 120, 20))
+  
+dev.off()
+
+#Fall N2 vs age
+tiff("Fall N2 regression", width = 500, height = 160, units = "mm", res = 300, compression = "lzw")
+
+annual.data %>%
+  filter(Season == "Fall") %>%
+  ggplot(aes(Age, N2Flux)) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  geom_point(size = 4) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
        axis.line.x = element_line(colour = "black", size = 0.8),
        axis.line.y = element_line(colour = "black", size = 0.8),
        panel.grid.major = element_line(colour = "grey70", size = 0.25),
@@ -336,13 +362,47 @@ annual.data %>%
   
 dev.off()
 
-tiff("Fall N2 regression", width = 400, height = 160, units = "mm", res = 300, compression = "lzw")
+
+#Annual N2 vs age, with separate lines for each habitat
+
+annual.data.sand <- add.sandflat(annual.data)
+annual.data.sand$Habitat <- factor(annual.data.sand$Habitat, levels = c("oyster", "marsh", "sandflat"))
+annual.data.sand <- set.factors.habitat(annual.data.sand)
+
+tiff("Annual N2 regression by Habitat", width = 400, height = 160, units = "mm", res = 300, compression = "lzw")
+
+annual.data.sand %>%
+  ggplot(aes(Age, N2Flux, colour = Habitat)) +
+  geom_point(size = 4) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 2) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black"),
+       legend.title = element_text(size = 23, face = "bold"),
+       legend.text = element_text(size = 20)) +
+  scale_colour_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
+                      labels = c("  oyster",
+                                 "  marsh",
+                                 "  sandflat")) +
+  xlab("Restored age (years)") +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol N ", m^2, " ", h^-1, ")"))) +
+  coord_cartesian(ylim = c(-10, 120)) +
+  scale_y_continuous(breaks = seq(-20, 120, 20))
+
+dev.off()
+
+#Annual SOM regression with age
+tiff("Annual SOM regression", width = 500, height = 160, units = "mm", res = 300, compression = "lzw")
 
 annual.data %>%
-  filter(Season == "Fall") %>%
-  ggplot(aes(Age, N2Flux)) +
-  geom_hline(yintercept = 0, size = 0.2, colour = "grey13") +
-  geom_vline(xintercept = 0, size = 0.2, colour = "grey13") +
+  ggplot(aes(Age, PercentOM)) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
   geom_point(size = 4) +
   theme(panel.background = element_rect(fill = "white", colour = NA),
        axis.title.x = element_text(margin = margin(t = 15), size = 26),
@@ -354,10 +414,123 @@ annual.data %>%
        axis.text.y = element_text(size = 20, colour = "black")) +
   geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 2) +
   xlab("Restored age (years)") +
+  ylab("SOM (%)") +
+  coord_cartesian(ylim = c(0, 10)) +
+  scale_y_continuous(breaks = seq(0, 10, 2))
+  
+dev.off()
+
+#Annual SOM regression with age, with a separate line for each habitat
+tiff("Annual SOM regression by Habitat", width = 500, height = 160, units = "mm", res = 300, compression = "lzw")
+
+annual.data.sand %>%
+  ggplot(aes(Age, PercentOM, colour = Habitat)) +
+  geom_point(size = 4) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 2) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 26),
+       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black"),
+       legend.title = element_text(size = 23, face = "bold"),
+       legend.text = element_text(size = 20)) +
+  scale_colour_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
+                      labels = c("  oyster",
+                                 "  marsh",
+                                 "  sandflat")) +
+  xlab("Restored age (years)") +
+  ylab("SOM (%)") +
+  coord_cartesian(ylim = c(0, 10)) +
+  scale_y_continuous(breaks = seq(0, 10, 2))
+
+dev.off()
+
+tiff("Annual N2 regression by SOD", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+annual.data %>%
+  ggplot(aes(SOD, N2Flux)) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  geom_point(size = 4) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 26),
+       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black")) +
+  geom_smooth(method = "lm", formula = y ~ x, se = F, size = 2) +
+  xlab(expression(paste(" Average SOD (", mu, "mol ", O[2], " ", m^2, " ", h^-1, ")"))) +
   ylab(expression(paste("Average ", N[2], " flux (", mu, "mol ", N[2], " ", m^2, " ", h^-1, ")"))) +
   coord_cartesian(ylim = c(-10, 120)) +
   scale_y_continuous(breaks = seq(-20, 120, 20))
-  
+
+dev.off()
+
+tiff("Summer N2 regression by SOM", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+annual.data %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(PercentOM, N2Flux)) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  geom_point(size = 4) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 26),
+       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black")) +
+  geom_smooth(method = "lm", formula = y ~ x, se = F, size = 2) +
+  xlab("Sediment organic matter (SOM) (%)") +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol ", N[2], " ", m^2, " ", h^-1, ")"))) +
+  coord_cartesian(ylim = c(-10, 120), xlim = c(0, 6)) +
+  scale_y_continuous(breaks = seq(-20, 120, 20))
+
+dev.off()
+
+
+tiff("All correlations", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+pairs(annual.data[, 5:11], upper.panel = panel.cor)
+
+dev.off()
+
+annual.data <- set.factors.basic(annual.data)
+
+tiff("Annual N2 regression by SOD, divided by Habitat", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+annual.data %>%
+  ggplot(aes(SOD, N2Flux, colour = Season)) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  geom_point(size = 4) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 26),
+       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black"),
+       legend.title = element_text(size = 23, face = "bold"),
+       legend.text = element_text(size = 20)) +
+  xlab(expression(paste(" Average SOD (", mu, "mol ", O[2], " ", m^2, " ", h^-1, ")"))) +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol N ", m^2, " ", h^-1, ")"))) +
+  coord_cartesian(ylim = c(-10, 120)) +
+  scale_y_continuous(breaks = seq(-20, 120, 20)) +
+  scale_colour_manual(values = c("darkgoldenrod1", "darkred", "darkblue", "darkgreen"),
+                         labels = c("  Summer",
+                                 "  Fall",
+                                 "  Winter",
+                                 "  Spring"))
+
 dev.off()
 
 ```
