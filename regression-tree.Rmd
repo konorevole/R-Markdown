@@ -124,6 +124,8 @@ par(mfrow = c(1,2))
 
 #In this case, that's a split of 4 with cp=0.01. However, this did not prune the tree at all compared to the original, so I used the next smallest cp value, 0.04. I manually entered the pruning parameters rather than creating code- that's also an option.
 
+#R2 value is 1 - relative error. The amount of variation explained by a split is the CP for the correct nsplit (note that the first nsplit = 0).
+
 pruned.all <- prune(fit.all, cp = 0.04)
 plot(pruned.all, uniform = T)
 text(pruned.all, use.n = T, all = T, cex = 0.8)
@@ -150,6 +152,7 @@ plot(pruned.BCG, uniform = T)
 text(pruned.BCG, use.n = T, all = T, cex = 0.9)
 summary(pruned.BCG)
 
+par(mfrow = c(1,2))
 rsq.rpart(pruned.BCG)
 
 

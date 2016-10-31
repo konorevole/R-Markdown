@@ -61,8 +61,7 @@ bartlett.test(N2Flux ~ Site, data = basic.N2)
 bartlett.test(N2Flux ~ Season, data = basic.N2)
 bartlett.test(N2Flux ~ Habitat, data = basic.N2)
 
-#Interestingly, passes Levene Test for Site and Habitat; fails for Season (change 2nd parameter
-#after ~ to explore)
+#Interestingly, passes Levene Test for Site and Habitat; fails for Season (change 2nd parameter after ~ to explore)
 leveneTest(N2Flux ~ Site, data = basic.N2)
 
 #Boxplot looks ok but there are definite outliers (change 2nd parameter as above)
@@ -182,13 +181,16 @@ indep.anova <- aov(N2Flux ~ Season + Site, data = BC.N2)
 summary(indep.anova)
 TukeyHSD(indep.anova)
 
-#Run ANOVA incorporating interaction between Season & Habitat
+#3-way ANOVA with interaction between Season & Habitat
+#Habitat was not significant, so it was dropped for refined subsequent ANOVA
 interact.anova <- aov(N2Flux ~  Habitat * Site * Season, data = BC.N2)
 summary(interact.anova)
 TukeyHSD(interact.anova)
 
+#2-way interactive ANOVA with Site & Season
 interact2 <- aov(N2Flux ~ Site * Season, data = BC.N2)
 summary(interact2)
+TukeyHSD(interact2)
 
 nested.anova <- aov(N2Flux ~ (Season + Site) / Habitat, data = BC.N2)
 summary(nested.anova)
