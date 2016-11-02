@@ -86,6 +86,22 @@ full.summary <- function(x){
         se = stdev / sqrt(N))
 }
 
+
+#Function to add restored site age descriptors for the x axis based on the site name. Includes the
+#intermediate value "changed" to set the factor levels within the function.
+
+#I think this is the #correct way to do this! I had not been able to figure this out when writing the 
+#above functions,#so at some point it may be prudent to adjust those if it won't mess up the other 
+#code too much.
+age.axis <- function(x){
+  changed <- mutate(x, Years = ifelse(Site == "IMS" , "0 years",
+                           ifelse(Site == "Carrot", "2 years",
+                                  ifelse(Site == "NOAA", "7 years", "20 years"))))
+  changed$Years <- factor(changed$Years, levels = c("0 years", "2 years", "7 years", "20 years"))
+  return(changed)
+}
+
+
 #Function written by someone online to add r (coefficient of correlation) and p values to scatterplot
 #matrix. I edited it to instead show R^2 (coefficient of correlation) by simply squaring r.
 #Used to specify the upper panel when calling the pairs function (ie upper.panel = panel.cor).
