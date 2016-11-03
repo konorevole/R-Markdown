@@ -20,6 +20,7 @@ library("plyr")
 library("dplyr")
 library("ggplot2")
 library("ggpmisc")
+library("ggrepel")
 
 source("functions.R")
 ```
@@ -394,6 +395,199 @@ annual.sandflat %>%
 
 dev.off()
 
+
+#Scatterplot of DNE vs SOD, color coded by habitat. Each point is the average value for that parameter by season and habitat.
+
+tiff("Figures\\Thesis\\DNE-vs-SOD-by-Habitat", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+DNE.merge %>%
+  ggplot(aes(avg_SOD, avg_eff, colour = Habitat)) +
+  geom_point(size = 4) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black"),
+       legend.title = element_text(size = 23, face = "bold"),
+       legend.text = element_text(size = 20)) +
+  scale_colour_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
+                      labels = c("  oyster",
+                                 "  marsh",
+                                 "  sandflat")) +
+  xlab(expression(paste("Average SOD (", mu, "mol", " ", O[2], " ", m^-2, " ", h^-1, ")"))) +
+  ylab("Average denitrification efficiency (%)") 
+
+dev.off()
+
+
+#Scatterplot of N2O vs N2 flux, color coded by Site with regression lines and equations. Also see code below the tiff chunk for supporting code.
+
+#Add year descriptors instead of site names for the legend
+N2O.merge2 <- age.axis(N2O.merge)
+
+tiff("Figures\\Thesis\\N2O-vs-N2-by-Site", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+N2O.merge2 %>%
+  ggplot(aes(N2flux, avg_N2OFlux, colour = Years)) +
+  geom_point(size = 6) +
+  geom_point(shape = 21, colour = "black", size = 6) +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black"),
+       legend.title = element_text(size = 23, face = "bold"),
+       legend.text = element_text(size = 20)) +
+   guides(colour = guide_legend(title = "Restored Age")) +
+   scale_colour_manual(values = c("slategray2", "skyblue2", "skyblue3", "skyblue4"),
+                      labels = c("  0 years",
+                               "  2 years",
+                               "  7 years",
+                               "  20 years")) +
+  xlab(expression(paste("Average ", N[2], " flux (", mu, "mol N ", m^-2, " ", h^-1, ")"))) +
+  ylab(expression(paste("Average ", N[2], "O flux (", mu, "mol ", N[2], "O ", m^-2, " ", h^-1, ")"))) +
+    coord_cartesian(xlim = c(0, 120), ylim = c(-0.6, 0.4)) +
+  geom_smooth(aes(group = Years), method = "lm", se = F) +
+  geom_text(data = reg.eqns, aes(x = x.coord, y = y.coord, label = label), hjust = 0, vjust = 0, colour = "black", parse = T)
+
+dev.off()
+
+#Supporting code for the above figure (N2O vs N2) is below
+
+#Creates a separate data frame storing the relevant information for the geom_text label. This was recommended because it is supposed to plot better than typing everything into geom_text as individual commands. The x and y coords are the locations on the graph where the text will plot. The text lines are further lined up by including hjust and vjust in the geom_text command above. The labels are annotated with mathematical symbology, with text separated with ~. You need to include parse = T in geom_text command for this to read properly. See note at the end for differentiating by color.
+
+reg.eqns <- data.frame(
+  x.coord = c(80, 80, 80, 80),
+  y.coord = c(-0.4, -0.45, -0.5, -0.55),
+  label = c(paste("0~years:~R^2 == 0.021 ~~~ p == 0.591"),
+            paste("2~years:~R^2 == 0.0084 ~~~ p == 0.670"),
+            paste("7~years:~R^2 == 0.272 ~~~ p == 0.009"),
+            paste("20~years:~R^2 == 0.341 ~~~ p == 0.0027"))
+)
+
+#To make the text colored too, use the following code:
+#  type = c("color names", "color names") etc
+# and colour = type in the geom_text command
+
+#These should actually be run first, but they're kept down here for clarity. This creates the linear regression line that can be evaluated with summary() to get the R2 and p values.
+IMS.fit <- lm(avg_N2OFlux ~ N2flux, data = subset(N2O.merge, Site == "IMS"))
+Carrot.fit <- lm(avg_N2OFlux ~ N2flux, data = subset(N2O.merge, Site == "Carrot"))
+NOAA.fit <- lm(avg_N2OFlux ~ N2flux, data = subset(N2O.merge, Site == "NOAA"))
+Army.fit <- lm(avg_N2OFlux ~ N2flux, data = subset(N2O.merge, Site == "Army"))
+
+
+
+#Scatterplot of N2 flux vs oyster filtration, color coded by site
+
+#Add restored age for legend
+filt.combo2 <- age.axis(filt.combo)
+
+tiff("Figures\\Thesis\\N2-vs-filtration-by-Site", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+filt.combo2 %>%
+  ggplot(aes(filtration, N2Flux, colour = Years)) +
+  geom_point(size = 6) +
+  geom_point(shape = 21, size = 6, colour = "black") +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black"),
+       legend.title = element_text(size = 23, face = "bold"),
+       legend.text = element_text(size = 20)) +
+  guides(colour = guide_legend(title = "Restored Age")) +
+  scale_colour_manual(values = c("slategray2", "skyblue2", "skyblue3", "skyblue4"),
+                      labels = c("  0 years",
+                               "  2 years",
+                               "  7 years",
+                               "  20 years")) +
+  xlab(expression(paste("Oyster filtration (L ", m^-2, " ", h^-1, ")"))) +
+  ylab(expression(paste("Average  ", N[2], " flux (", mu, "mol N ", m^-2, " ", h^-1, ")")))
+
+dev.off()
+
+
+#Scatterplot of N2 flux vs S alterniflora stem density, color coded by Site
+
+#Adding restored age column for the legend
+stem.core.combo2 <- age.axis(stem.core.combo)
+
+tiff("Figures\\Thesis\\N2-vs-stem-density-by-Site", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+stem.core.combo2 %>%
+  ggplot(aes(adj_density, N2Flux, colour = Years)) +
+  geom_point(size = 6) +
+  geom_point(shape = 21, size = 6, colour = "black") +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black"),
+       legend.title = element_text(size = 23, face = "bold"),
+       legend.text = element_text(size = 20)) +
+  coord_cartesian(ylim = c(0,80)) +
+  guides(colour = guide_legend(title = "Restored Age")) +
+  scale_colour_manual(values = c("slategray2", "skyblue2", "skyblue3", "skyblue4"),
+                      labels = c("  0 years",
+                               "  2 years",
+                               "  7 years",
+                               "  20 years")) +
+  xlab(expression(paste(italic("S. alterniflora"), " density (stems", " ", m^-2, ")"))) +
+  ylab(expression(paste("Average  ", N[2], " flux (", mu, "mol N ", m^-2, " ", h^-1, ")")))
+
+dev.off()
+
+
+#Scatterplot of SOM vs stem density, color coded by age
+
+#Add restored age column for legend
+stem.combo2 <- age.axis(stem.combo)
+
+tiff("Figures\\Thesis\\SOM-vs-stem-density-by-Site", width = 300, height = 200, units = "mm", res = 300, compression = "lzw")
+
+stem.combo2 %>%
+  ggplot(aes(avg_density, marsh_SOM, colour = Years)) +
+  geom_point(size = 6) +
+  geom_point(shape = 21, size = 6, colour = "black") +
+  theme(panel.background = element_rect(fill = "white", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 28),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 20, colour = "black"),
+       axis.text.y = element_text(size = 20, colour = "black"),
+       legend.title = element_text(size = 23, face = "bold"),
+       legend.text = element_text(size = 20)) +
+  coord_cartesian(ylim = c(0,5)) +
+  guides(colour = guide_legend(title = "Restored Age")) +
+  scale_colour_manual(values = c("slategray2", "skyblue2", "skyblue3", "skyblue4"),
+                      labels = c("  0 years",
+                               "  2 years",
+                               "  7 years",
+                               "  20 years")) +
+  geom_smooth(aes(group = 1), method = "lm", formula = y ~ x, se = F, colour = "navy") +
+  geom_text(aes(x = 25, y = 4.5), hjust = 0, vjust = 0, colour = "black", size = 5, 
+            label = paste("R^2 == 0.9 ~~~ p == 0.502"), parse = T) +
+  xlab(expression(paste(italic("S. alterniflora"), " density (stems", " ", m^-2, ")"))) +
+  ylab(expression(paste("Average SOM (%)")))
+
+dev.off()
+
+#Creating linear fit to obtain R2 and p values. Separated from above tiff code for clarity.
+stem.SOM.fit <- lm(marsh_SOM ~ avg_density, data = stem.combo)
 
 ```
 
