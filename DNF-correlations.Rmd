@@ -25,6 +25,9 @@ library("lattice")
 library("grid")
 library("reshape2")
 library("RColorBrewer")
+library("gtable")
+library("gridExtra")
+library("cowplot")
 
 source("functions.R")
 
@@ -286,6 +289,7 @@ melted.spring %>%
 
 ```
 
+Polished figures created for my defense.
 ``` {r defense.figs}
 
 #Annual N2 regression with age
@@ -576,7 +580,6 @@ sed.join %>%
                   aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
                   label.x.npc = "right")
 
-
 #Same as above but visualized with a separate line for each habitat
 #Fitted with 2nd order polynomial equation
 #Looks like %OM may have a good story! Strong R2 and p values for all habitats
@@ -609,6 +612,248 @@ sed.join %>%
                   geom = "text",
                   aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
                   label.x.npc = "right")
+
+
+#Changing reference to sandflat and adding factor levels
+sed.join <- add.sandflat(sed.join)
+sed.join <- set.factors.habitat(sed.join)
+
+#Creating stacked restoration trajectories for sediment parameters collected every season (SOD, SOM, bulk density, N2 flux) against restored age. This requires making a single graph for each parameter using the melted data set, then combining them all with grid.draw.
+
+#First creating separate graphs for each variable. The first 3 do not have x axis labels or titles so there's just a single x axis at the very bottom.
+
+p1.SOD <- sed.join %>%
+  filter(variable == "SOD") %>%
+  ggplot(aes(Age, value)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 1, colour = "mediumblue") +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       #axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black")) +
+    ylab(expression(paste("SOD (", mu, "mol ", O[2], " ", m^-2, " ", h^-1, ")")))
+
+p2.SOM <- sed.join %>%
+  filter(variable == "PercentOM") %>%
+  ggplot(aes(Age, value)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 1, colour = "mediumblue") +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       #axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black")) +
+    ylab(expression(paste("SOM (%)")))
+
+p3.BD <- sed.join %>%
+  filter(variable == "BulkDensity") %>%
+  ggplot(aes(Age, value)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 1, colour = "mediumblue") +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       #axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black")) +
+    ylab(expression(paste("Bulk Density (g ", cm^-3, ")")))
+
+p4.N2 <- sed.join %>%
+  filter(variable == "N2Flux") %>%
+  ggplot(aes(Age, value)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 1, colour = "mediumblue") +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 15),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 12, colour = "black"),
+       axis.text.y = element_text(size = 12, colour = "black")) +
+  xlab("Restored Age (years)") +
+  ylab(expression(paste(N[2], " flux (", mu, "mol N ", m^-2, " ", h^-1, ")")))
+
+#Using the grid package to put them all together.
+grid.newpage()
+
+tiff("Figures\\Thesis\\RT-seasonal-sed-params", width = 350, height = 250, units = "mm", res = 300, compression = "lzw")
+
+grid.draw(rbind(ggplotGrob(p1.SOD), ggplotGrob(p2.SOM), ggplotGrob(p3.BD), ggplotGrob(p4.N2),
+                size = "last"))
+
+dev.off()
+
+
+
+###Plotting sediment characteristics collected seasonally for an entire year (same as above), divided by habitat. Requires creating separate plots and a legend, which is the first chunk of code. Those plots are then combined to create a final cluster of plots.
+
+#Creating plot only to extract a relevant legend
+legend.plot <- sed.join %>%
+  filter(variable == "SOD") %>%
+  ggplot(aes(Age, value, colour = Habitat)) +
+  geom_point(size = 2) +
+  geom_smooth(aes(colour = Habitat), method = "lm", formula = y ~ poly(x,2), se = F, size = 1) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black"),
+       legend.text = element_text(size = 15),
+       legend.title = element_text(size = 20)) +
+  coord_cartesian(xlim = c(0, 20)) +
+  ylab(expression(paste("SOD (", mu, "mol ", O[2], " ", m^-2, " ", h^-1, ")"))) +
+  scale_colour_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
+                      labels = c("  oyster",
+                                 "  marsh",
+                                 "  sandflat"))
+
+#Creating the plots of the 4 parameters
+
+p5.SOD <- sed.join %>%
+  filter(variable == "SOD") %>%
+  ggplot(aes(Age, value, colour = Habitat)) +
+  geom_point(size = 2) +
+  geom_smooth(aes(colour = Habitat), method = "lm", formula = y ~ poly(x,2), se = F, size = 1) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black"),
+       legend.position = "none") +
+  coord_cartesian(xlim = c(0, 20)) +
+  ylab(expression(paste("SOD (", mu, "mol ", O[2], " ", m^-2, " ", h^-1, ")"))) +
+  scale_colour_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
+                      labels = c("  oyster",
+                                 "  marsh",
+                                 "  sandflat"))
+
+p6.SOM <- sed.join %>%
+  filter(variable == "PercentOM") %>%
+  ggplot(aes(Age, value, colour = Habitat)) +
+  geom_point(size = 2) +
+  geom_smooth(aes(group = Habitat), method = "lm", formula = y ~ poly(x,2), se = F, size = 1) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black"),
+       legend.position = "none",
+       legend.text = element_text(size = 12)) +
+    coord_cartesian(xlim = c(0, 20)) +
+    ylab(expression(paste("SOM (%)"))) +
+    scale_colour_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
+                      labels = c("  oyster",
+                                 "  marsh",
+                                 "  sandflat"))
+
+p7.BD <- sed.join %>%
+  filter(variable == "BulkDensity") %>%
+  ggplot(aes(Age, value, colour = Habitat)) +
+  geom_point(size = 2) +
+  geom_smooth(aes(group = Habitat), method = "lm", formula = y ~ poly(x,2), se = F, size = 1) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black"),
+       legend.position = "none") +
+    coord_cartesian(xlim = c(0, 20)) +
+    ylab(expression(paste("Bulk Density (g ", cm^-3, ")"))) +
+    scale_colour_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
+                      labels = c("  oyster",
+                                 "  marsh",
+                                 "  sandflat"))
+
+p8.N2 <- sed.join %>%
+  filter(variable == "N2Flux") %>%
+  ggplot(aes(Age, value, colour = Habitat)) +
+  geom_point(size = 2) +
+  geom_smooth(aes(colour = Habitat), method = "lm", formula = y ~ poly(x,2), se = F, size = 1) +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 15),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 12, colour = "black"),
+       axis.text.y = element_text(size = 12, colour = "black"), 
+       legend.position = "none") +
+  coord_cartesian(xlim = c(0, 20)) +
+  xlab("Restored Age (years)") +
+  ylab(expression(paste(N[2], " flux (", mu, "mol N ", m^-2, " ", h^-1, ")"))) +
+  scale_colour_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
+                      labels = c("  oyster",
+                                 "  marsh",
+                                 "  sandflat"))
+
+
+#Putting the above plots together in a combined graph
+
+#Create grobs (grahical units) of each individual plot
+g5 <- ggplotGrob(p5.SOD)
+g6 <- ggplotGrob(p6.SOM)
+g7 <- ggplotGrob(p7.BD)
+g8 <- ggplotGrob(p8.N2)
+
+#Bind together the 4 plots using rbind. This will ensure that all the axes line up. Super important! Otherwise, things get wonky when g.arrange is used.
+g <- rbind(g5, g6, g7, g8, size = "first")
+
+#This assigns the sizes of the above rbind result to the maximum width of any of the grobs (I think)
+g$widths <- unit.pmax(g5$widths, g6$widths, g7$widths, g8$widths)
+
+#Create a separate legend by extracting the legend from the plot created just for a legend. This was necessary because I wanted to make the legend text larger, and couldn't figure out how to do that in one of the 4 regular plots without turning on the legend, which would mess up the alignment.
+legend2 <- get_legend(legend.plot)
+legend2 <- gtable_filter(ggplotGrob(legend.plot), "guide-box")
+
+#Prepare to export the final graph
+
+grid.newpage()
+
+tiff("Figures\\Thesis\\RT-seasonal-sed-params-by-habitat", width = 350, height = 250, units = "mm", res = 300, compression = "lzw")
+
+#Graph the bound plots and the legend using grid.arrange. Adjust the number of columns and widths accordingly.
+
+grid.arrange(g, legend2, ncol = 2, widths = c(9, 1.5))
+
+dev.off()
+
+
 
 ```
 
