@@ -539,8 +539,7 @@ dev.off()
 
 ```
 
-
-Cleaned-up versions of the above data exploration.
+Figures included in my initial thesis submission. These are cleaner than the figures originally created during general data exploration, but were improved in the following chunk of code for final submission to the graduate school.
 ``` {r thesis.figs}
 
 #Creating a new melted dataframe that does not include [O2], NOx flux, or NH3 flux
@@ -613,6 +612,10 @@ sed.join %>%
                   aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
                   label.x.npc = "right")
 
+```
+
+Revised versions of the above figures to be included in my final thesis. Same data visualized, but done so in a much more polished fashion that matches the format used in the defense.
+``` {r thesis.revisions}
 
 #Changing reference to sandflat and adding factor levels
 sed.join <- add.sandflat(sed.join)
@@ -854,6 +857,73 @@ grid.arrange(g, legend2, ncol = 2, widths = c(9, 1.5))
 dev.off()
 
 
+#Creating a variation of the first plot in this section: restoration trajectory of sediment parameters collected every season, but only visualized for SUMMER and omitting bulk density. First creating 3 separate plots, then combining them using grid.arrange.
+
+#First creating 3 plots for SOD, SOM, and N2 flux during summer only.
+
+p9.SOD <- sed.join %>%
+  filter(variable == "SOD") %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Age, value)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 1, colour = "mediumblue") +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       #axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black")) +
+    ylab(expression(paste("SOD (", mu, "mol ", O[2], " ", m^-2, " ", h^-1, ")")))
+
+p10.SOM <- sed.join %>%
+  filter(variable == "PercentOM") %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Age, value)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 1, colour = "mediumblue") +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_blank(),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       #axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(size = 12, colour = "black")) +
+    ylab(expression(paste("SOM (%)")))
+
+p11.N2 <- sed.join %>%
+  filter(variable == "N2Flux") %>%
+  filter(Season == "Summer") %>%
+  ggplot(aes(Age, value)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), se = F, size = 1, colour = "mediumblue") +
+  geom_hline(yintercept = 0, size = 0.2, colour = "grey23") +
+  geom_vline(xintercept = 0, size = 0.2, colour = "grey23") +
+  theme(panel.background = element_rect(fill = "grey96", colour = NA),
+       axis.title.x = element_text(margin = margin(t = 15), size = 15),
+       axis.title.y = element_text(margin = margin(r = 20), size = 15),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major = element_line(colour = "grey70", size = 0.25),
+       axis.text.x = element_text(size = 12, colour = "black"),
+       axis.text.y = element_text(size = 12, colour = "black")) +
+  xlab("Restored Age (years)") +
+  ylab(expression(paste(N[2], " flux (", mu, "mol N ", m^-2, " ", h^-1, ")")))
+
+#Using the grid package to put them all together.
+grid.newpage()
+
+tiff("Figures\\Thesis\\RT-sed-params-summer-only", width = 350, height = 250, units = "mm", res = 300, compression = "lzw")
+
+grid.draw(rbind(ggplotGrob(p9.SOD), ggplotGrob(p10.SOM), ggplotGrob(p11.N2), size = "last"))
+
+dev.off()
 
 ```
 
