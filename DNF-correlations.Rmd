@@ -28,6 +28,7 @@ library("RColorBrewer")
 library("gtable")
 library("gridExtra")
 library("cowplot")
+library("MASS")
 
 source("functions.R")
 
@@ -58,8 +59,12 @@ sed.data$Site <- factor(sed.data$Site, levels = c("IMS", "Carrot", "NOAA", "Army
 sed.data$CoreName <- factor(sed.data$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref"))
 sed.data$Habitat <- factor(sed.data$Habitat, levels = c("oyster", "marsh", "Ref"))
 
+annual.data <- add.sandflat(annual.data)
+
 annual.data <- add.age(annual.data)
 annual.data$Age <- as.numeric(annual.data$Age)
+
+annual.data <- set.factors.habitat(annual.data)
 
 ```
 
@@ -86,15 +91,210 @@ pairs(all.avgs.nona[ , 5:8], upper.panel = panel.cor)
 
 ```
 
+Checking for validity of assumptions (heterogeneity of variances & normality) for regression using Bartlett & Shapiro-Wilk tests, respectively. Checking on both annual and seasonal groupings of variables as relevant.
+``` {r assumption.checks}
+
+#Remember: Check for homoegeneity of variances w Bartlett test. If p>0.05, cannot reject null that variance is same -- so the sample passes.
+
+#Checking for normality using Shapiro-Wilk with previously-written code to spell out results. Shapiro-Wilk tests AGAINST assumption of normality: aka, if p<0.05, the samples are likely to be non-normal. This is confusing which is why I've written the code.
+
+###Annual N2 flux###
+
+#Fails Bartlett, p = 0.03
+bartlett.test(N2Flux ~ Site, data = annual.data)
+
+#Everything passes except for Army...
+test.norm.N2 <- annual.data %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+##Use Box Cox transformation to attempt correction since log transformation failed
+
+#Eliminate all but relevant columns for simplicity; transformed values will be added as new columns. Also convert Age to a factor b/c it was previously numeric.
+drops <- c("O2conc", "PercentInundation", "NOxFlux", "NH3Flux")
+annual.fix <- annual.data[ , !(names(annual.data) %in% drops)]
+annual.fix$Age <- factor(annual.fix$Age, levels = c("0", "2", "7", "20"))
+
+#Start by finding the optimal value of lambda
+
+#Create a column with positive values of N2 by adding 10 to each flux
+annual.fix <- mutate(annual.fix,
+                  PosN2 = N2Flux + 10)
+#Create a log-likelihood graph using a command from the MASS package
+bctrans <- boxcox(PosN2 ~ Age, data = annual.fix,
+                    lambda = seq(0, 1, by = 0.1))
+#Identify the maximum likelihood value
+which.max(bctrans$y)
+#Use that maximum likelihood value (from the y axis) to determine the associated lambda (on the x axis)
+bctrans$x[which.max(bctrans$y)]
+
+#Take the variable to the power of the lambda to perform the transformation!
+annual.fix <- mutate(annual.fix,
+                     N2BoxCox = (((PosN2 ^ 0.545) - 1) / 0.545))
+
+#Passes Bartlett, p = 0.057
+bartlett.test(N2BoxCox ~ Site, data = annual.fix)
+
+#Army still fails, but is closer: p = 0.022 vs 0.0007
+test.norm.BCN2 <- annual.fix %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+#subsetting annual.fix to create a new data frame with only tranformed summer data for testing
+summer.BCtest <- annual.fix %>%
+  filter(Season == "Summer") %>%
+  group_by(Site)
+
+#Running checks on transformed summer N2 Flux data-- passes all
+bartlett.test(N2BoxCox ~ Site, data = summer.BCtest)
+
+test.norm.BCsumN2 <- summer.BCtest %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+###Annual SOD###
+
+#Passes Bartlett!
+bartlett.test(SOD ~ Site, data = annual.data)
+
+#Army & Carrot fail normality.
+test.norm.SOD <- annual.data %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(SOD)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+#Implement a Box Cox transformation to correct
+
+#Start by finding the optimal value of lambda
+#Create a log-likelihood graph using a command from the MASS package
+bctrans2 <- boxcox(SOD ~ Age, data = annual.fix,
+                    lambda = seq(0, 1, by = 0.1))
+#Identify the maximum likelihood value
+which.max(bctrans2$y)
+#Use that maximum likelihood value (from the y axis) to determine the associated lambda (on the x axis)
+bctrans2$x[which.max(bctrans2$y)]
+
+#Take the variable to the power of the lambda to perform the transformation!
+annual.fix <- mutate(annual.fix,
+                     SODBoxCox = (((SOD ^ 0.192) - 1) / 0.192))
+
+#Passes Bartlett still, and normality is better: Carrot passes and Army still fails, but better (p = 0.01 vs 0.000002)
+test.norm.BCSOD <- annual.fix %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(SODBoxCox)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+##Summer N2 flux
+
+#Create subset data frame with only summer data to run test on N2 Flux, to ultimately add a dotted line for summer N2 flux trajectory. This is a modified version of the broader seasonal regressions that were conducted earlier in analysis to explore trends.
+summer.test <- annual.data %>%
+  filter(Season == "Summer") %>%
+  group_by(Site)
+
+#passes Bartlett
+bartlett.test(N2Flux ~ Site, data = summer.test)
+
+#Carrot fails normality
+test.norm.sumN2 <- summer.test %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(N2Flux)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+##Annual SOM
+
+#fails Bartlett test, p = 1.2 E-8
+bartlett.test(PercentOM ~ Site, data = annual.data)
+
+#IMS & Carrot fail normality
+test.norm.SOM <- annual.data %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(PercentOM)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+#First attempted BoxCox transform but it didn't work- possibly b/c it's a %?
+#Created new data frame to attempt transformations of SOM. Includes the column SOM which is PercentOM changed to a proportion rather than a %.
+#Attempt arcsin transformation, which wasn't helpful: still failed same checks. Then attempted logit transformation.
+annual.fix2 <- mutate(annual.fix,
+                      SOM = PercentOM / 100,
+                      sqrootSOM = sqrt(SOM),
+                      arcsinSOM = asin(sqrootSOM),
+                      logitSOM = log(SOM / (1-SOM)))
+
+#Logit transform fails Barlett but better (p = 0.002) and all pass normality
+bartlett.test(logitSOM ~ Age, annual.fix2)
+
+test.norm.logitSOM <- annual.fix2 %>%
+    group_by(Site) %>%
+    summarise(SW.pvalue = shapiro.test(logitSOM)$p.value) %>%
+    mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+
+##Spring bulk density
+
+#Fails Bartlett, p = 0.01
+bartlett.test(BulkDensity ~ Site, data = sed.data)
+
+#All pass
+test.norm.BD <- sed.data %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(BulkDensity)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+```
+
 Visualize the various parameters across age, per the restoration trajectory model. This can probably be modified to show whatever parameters are of interest, but seems really practical for a figure!
 ``` {r regression}
+
+#Creating a formula for a log fit. Need to add 10 to make the #s all positive
+ln.formula <- y ~ log(x + 10)
 
 #Regression is 2nd order polynomial based on expectations (not linear) and data
 quad.formula <- y ~ poly(x,2)
 
 #Melt the data to create 2 columns:parameter names and values
 #To be used in below analysis
-melted.annual <- melt(annual.data, measure.vars = c("O2conc", "SOD", "PercentOM", "PercentInundation", "NOxFlux", "NH3Flux", "N2Flux"))  
+melted.annual <- melt(annual.data, measure.vars = c("O2conc", "SOD", "PercentOM", "PercentInundation", "NOxFlux", "NH3Flux", "N2Flux")) 
+
+#Separate the data so SOD & N2 flux are together, and SOM and BD are together
+melted.1 <- melted.annual[melted.annual$variable == "SOD" | melted.annual$variable == "N2Flux", ]
+
+melted.1a <- mutate(melted.1, pos.value = value + 10)
+
+
+
+p1 <- ggplot(annual.data)
+p1 + stat_qq(aes(sample = SOD)) + geom_smooth(aes(colour = Site), method = "lm")
+shapiro.test(SOD ~ Age, data = annual.data)
+
+test.norm.Age <- annual.data %>%
+  group_by(Site) %>%
+  summarise(SW.pvalue = shapiro.test(SOD)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+annual.data %>%
+  ggplot(aes(SOD)) +
+  geom_histogram(stat = "bin", binwidth = 5) +
+  facet_grid(Site ~ .)
+
+bartlett.test(SOD ~ Site, data = annual.data)
+
+trans.Site <- annual.data %>%
+  mutate(log_SOD = log(SOD, 10),
+         SOD2 = SOD^2)
+
+
+
+
+summary(lm(annual.data$SOD ~ cbind(annual.data$Age, log(annual.data$Age + 10))))
+
+melted.1a %>%
+  ggplot(aes(Age, pos.value)) +
+  geom_point() +
+  facet_grid(variable ~ ., scales = "free_y") +
+  geom_smooth()
 
 #Get rid of NA values and percent inundation (b/c that wouldn't be expected to change w age)
 melted.annual <- na.omit(melted.annual)

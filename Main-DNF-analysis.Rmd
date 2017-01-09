@@ -61,7 +61,7 @@ bartlett.test(N2Flux ~ Site, data = basic.N2)
 bartlett.test(N2Flux ~ Season, data = basic.N2)
 bartlett.test(N2Flux ~ Habitat, data = basic.N2)
 
-#Interestingly, passes Levene Test for Site and Habitat; fails for Season (change 2nd parameter after ~ to explore)
+#Interestingly, passes Levene Test for Site and Habitat; fails for Season (change 2nd parameter after ~ to explore)- this is probably b/c the Levene test is less sensitive
 leveneTest(N2Flux ~ Site, data = basic.N2)
 
 #Boxplot looks ok but there are definite outliers (change 2nd parameter as above)

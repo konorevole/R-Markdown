@@ -274,6 +274,7 @@ stem.p1 + stat_summary(fun.y = mean, geom = "bar", position = "dodge")
 
 ```
 
+Running ANOVAs on SOD to further inform the results of the regression tree, which showed that SOD was the most impactful parameter.
 ``` {r SOD.anovas}
 
 hist(SOD$SOD)
@@ -285,6 +286,38 @@ summary(Site.anova)
 
 all.SOD.anova <- aov(SOD ~ Season * Site * Habitat, data = SOD)
 summary(all.SOD.anova)
+
+```
+
+Graphing SOM for oyster reefs and determining whether trends exist by Site or Season (can be filled in accordingly).
+``` {r SOM.comparisons}
+
+#Set restored age as factors
+annual$Age <- factor(annual$Age, levels = c("0", "2", "7", "20"))
+
+#Create df with only oyster data
+annual.oyster <- annual %>%
+  filter(Habitat == "oyster")
+
+#Summarize oyster SOM data for graphing
+oyster.SOM <-  ddply(annual.oyster, .(Site, CoreName), summarise,
+                 avg_SOM = mean(SOM),
+                 sd_SOM = sd(SOM),
+                 N = length(SOM),
+                 se_SOM = sd_SOM / sqrt(N))
+
+#Create bar graph of oyster SOM data, which can be visualized differepntly as desired
+oyster.SOM %>%
+  ggplot(aes(CoreName, avg_SOM, fill = Site)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymin = avg_SOM - se_SOM, ymax = avg_SOM + se_SOM), width = 0.3,
+                position = position_dodge(0.9))
+
+#Enables exploration of oyster SOM data by categories
+annual.oyster %>%
+  group_by(Site == "Carrot") %>%
+  ggplot(aes(CoreName, SOM, fill = Site)) +
+  geom_bar(stat = "identity", position = "dodge")
 
 ```
 
@@ -306,7 +339,7 @@ avg_DNF_years %>%
                 position = position_dodge(0.9)) +
   facet_grid(Years ~ .) +
   xlab(NULL) +
-  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol ", N[2], " ", m^-2, " ", h^-1, ")"))) +
+  ylab(expression(paste("Average ", N[2], " flux (", mu, "mol N ", m^-2, " ", h^-1, ")"))) +
   coord_cartesian(ylim = c(-10, 120)) +
   scale_y_continuous(breaks = seq(0, 125, 25)) +
   geom_hline(yintercept = 0, size = 0.5, colour = "black") +
