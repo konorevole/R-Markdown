@@ -16,26 +16,26 @@ knitr::opts_chunk$set(echo = TRUE)
 Load the packages and functions needed for this analysis.
 ```{r libraries}
 
-library("plyr")
-library("dplyr")
-library("car")
-library("ggplot2")
-library("ggpmisc")
-library("lattice")
-library("grid")
-library("reshape2")
-library("RColorBrewer")
-library("gtable")
-library("gridExtra")
-library("cowplot")
-library("MASS")
+library(plyr)
+library(dplyr)
+library(car)
+library(ggplot2)
+library(ggpmisc)
+library(lattice)
+library(grid)
+library(reshape2)
+library(RColorBrewer)
+library(gtable)
+library(gridExtra)
+library(cowplot)
+library(MASS)
 
 source("functions.R")
 
 ```
 
 Read in the annual data, which has been previously worked up in the parent R Markdown files. Annual data contains data for each season; all averages contains the average value for each core type for the entire year.
-``` {r read.in}
+```{r read.in}
 
 annual.data <- read.csv("PRIMER\\raw\\annual-data_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
 
@@ -48,7 +48,7 @@ sed.data <- read.csv("PRIMER\\raw\\sed-data_spring15_all-sites.csv", header = T,
 ```
 
 Eliminating NA values and add column for Age
-``` {r pretreat}
+```{r pretreat}
 
 all.avgs.nona <- na.omit(all.avgs)
 all.avgs.nona$Site <- factor(all.avgs.nona$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
@@ -69,7 +69,7 @@ annual.data <- set.factors.habitat(annual.data)
 ```
 
 Viewing correlation info & scatterplot matrices for the two types of averaged data (by core and annually).
-``` {r correlation.values}
+```{r correlation.values}
 
 cor(annual.data[annual.data$Age, 5:11])
 cor(annual.data[ , 5:11])
@@ -92,7 +92,7 @@ pairs(all.avgs.nona[ , 5:8], upper.panel = panel.cor)
 ```
 
 Checking for validity of assumptions (heterogeneity of variances & normality) for regression using Bartlett & Shapiro-Wilk tests, respectively. Checking on both annual and seasonal groupings of variables as relevant.
-``` {r assumption.checks}
+```{r assumption.checks}
 
 #Remember: Check for homoegeneity of variances w Bartlett test. If p>0.05, cannot reject null that variance is same -- so the sample passes.
 
@@ -142,6 +142,19 @@ test.norm.BCN2 <- annual.fix %>%
   summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
+
+#Adding age again as a numerical value rather than factor
+trial <- add.num.age(annual.fix)
+
+#The regression of the transformed N2 flux data against age doesn't look that bad, and the stats aren't too different from the untransformed fluxes. Both are signif with p = 0.05 and have R2 ~ 0.3 (R2 is slightly higher for the untransformed).
+trial %>%
+  ggplot(aes(NumAge, N2BoxCox)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = quad.formula)
+
+model <- lm(trial$N2BoxCox ~ poly(trial$NumAge,2))
+summary(model)
+
 #subsetting annual.fix to create a new data frame with only tranformed summer data for testing
 summer.BCtest <- annual.fix %>%
   filter(Season == "Summer") %>%
@@ -180,12 +193,46 @@ bctrans2$x[which.max(bctrans2$y)]
 #Take the variable to the power of the lambda to perform the transformation!
 annual.fix <- mutate(annual.fix,
                      SODBoxCox = (((SOD ^ 0.192) - 1) / 0.192))
+annual.fixtemp <- mutate(annual.fix,
+                         log.SOD = log(SOD, 10),
+                         ln.SOD = log(SOD))
 
 #Passes Bartlett still, and normality is better: Carrot passes and Army still fails, but better (p = 0.01 vs 0.000002)
-test.norm.BCSOD <- annual.fix %>%
+test.norm.BCSOD2 <- annual.fixtemp %>%
   group_by(Site) %>%
-  summarise(SW.pvalue = shapiro.test(SODBoxCox)$p.value) %>%
+  summarise(SW.pvalue = shapiro.test(log.SOD)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+#Adding age as a numerical value to facilitate graphing (below)
+trial2 <- add.num.age(annual.fixtemp)
+
+#Visualizing the transformed & untransformed data, respectively. Pretty much same shape of regression curve but units are VERY different.
+p9 <- ggplot(trial2, aes(NumAge, log.SOD))
+p9 + geom_point() + geom_smooth(method = "lm", formula = quad.formula)
+
+p10 <- ggplot(trial2, aes(NumAge, SOD))
+p10 + geom_point() + geom_smooth(method = "lm", formula = quad.formula)
+
+#Both give bad R2 (untrans: 0.13, trans: 0.16) and both have signif p-values.
+model2 <- lm(trial2$SOD ~ poly(trial2$NumAge, 2))
+summary(model2)
+
+model3 <- lm(trial2$log.SOD ~ poly(trial2$NumAge, 2))
+summary(model3)
+
+
+annual.data %>%
+  ggplot(aes(Age, SOD)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ log(x + .001), size = 2) +
+  stat_poly_eq(formula = y ~ log(x + .001),
+                 aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+   stat_fit_glance(method = "lm",
+                   method.args = list(formula = y ~ log(x + .001),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right"))
 
 ##Summer N2 flux
 
@@ -231,6 +278,22 @@ test.norm.logitSOM <- annual.fix2 %>%
     summarise(SW.pvalue = shapiro.test(logitSOM)$p.value) %>%
     mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
+trial3 <- add.num.age(annual.fix2)
+
+#Visualizing the transformed & untransformed data, respectively. Pretty much same shape of regression curve but units are VERY different.
+p11 <- ggplot(trial3, aes(NumAge, logitSOM))
+p11 + geom_point() + geom_smooth(method = "lm", formula = quad.formula)
+
+p12 <- ggplot(trial3, aes(NumAge, SOM))
+p12 + geom_point() + geom_smooth(method = "lm", formula = quad.formula)
+
+#Transformed data gives better R2 (0.47 vs 0.39)-- **altho might be worth running an ANOVA to check if the difference is significant (see saved R-Bloggers page for info)**. p-values are signif in both cases.
+model4 <- lm(trial3$SOM ~ poly(trial3$NumAge, 2))
+summary(model4)
+
+model5 <- lm(trial3$logitSOM ~ poly(trial3$NumAge, 2))
+summary(model5)
+
 
 ##Spring bulk density
 
@@ -243,10 +306,32 @@ test.norm.BD <- sed.data %>%
   summarise(SW.pvalue = shapiro.test(BulkDensity)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
+#Unable to find a transformation that passes the assumptions using the standard set of transformations and Box Cox. (Got same error as with SOM for bulk density for Box Cox, where max value was 100 and resulting x value was 0. Not sure what's causing that to happen, but it's probably something theoretical.)
+sed.fix <- mutate(sed.data,
+                  log.BD = log(BulkDensity, 10),
+                  sqroot.BD = sqrt(BulkDensity),
+                  BDsquared = BulkDensity ^ 2,
+                  ln.BD = log(BulkDensity),
+                  cuberoot.BD = BulkDensity ^ (1/3),
+                  logplus.BD = log(BulkDensity + 1, 10))
+
+sed.fix$Age <- factor(sed.fix$Age, levels = c("0", "2", "7", "20"))
+
+bartlett.test(log.BD ~ Site, sed.fix)
+
+p1 <- ggplot(sed.fix, aes(Age, BulkDensity))
+p1 + geom_point(aes(colour = CoreName)) +
+  coord_cartesian(ylim = c(0,2))
+lmBD <- lm(BulkDensity ~ Age, sed.fix)
+par(mfrow = c(2,2))
+plot(lmBD)
+
+lmtest::bptest(lmBD)
+
 ```
 
 Visualize the various parameters across age, per the restoration trajectory model. This can probably be modified to show whatever parameters are of interest, but seems really practical for a figure!
-``` {r regression}
+```{r regression}
 
 #Creating a formula for a log fit. Need to add 10 to make the #s all positive
 ln.formula <- y ~ log(x + 10)
@@ -260,6 +345,20 @@ melted.annual <- melt(annual.data, measure.vars = c("O2conc", "SOD", "PercentOM"
 
 #Separate the data so SOD & N2 flux are together, and SOM and BD are together
 melted.1 <- melted.annual[melted.annual$variable == "SOD" | melted.annual$variable == "N2Flux", ]
+
+melted.1 %>%
+  filter(variable == "N2Flux") %>%
+  ggplot(aes(Age, value)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = quad.formula, se = F) +
+  stat_poly_eq(formula = y ~ poly(x,2),
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")),
+                 parse = T) +
+  stat_fit_glance(method = "lm",
+                  method.args = list(formula = quad.formula),
+                  geom = "text",
+                  aes(label = paste("P-value =", signif(..p.value.., digits = 4), sep = "")),
+                  label.x.npc = "right")
 
 melted.1a <- mutate(melted.1, pos.value = value + 10)
 
@@ -490,7 +589,7 @@ melted.spring %>%
 ```
 
 Polished figures created for my defense.
-``` {r defense.figs}
+```{r defense.figs}
 
 #Annual N2 regression with age
 tiff("Annual N2 regression", width = 500, height = 160, units = "mm", res = 300, compression = "lzw")
@@ -740,7 +839,7 @@ dev.off()
 ```
 
 Figures included in my initial thesis submission. These are cleaner than the figures originally created during general data exploration, but were improved in the following chunk of code for final submission to the graduate school.
-``` {r thesis.figs}
+```{r thesis.figs}
 
 #Creating a new melted dataframe that does not include [O2], NOx flux, or NH3 flux
 melted.annual2 <- melted.annual[!melted.annual$variable == "O2conc", ]
@@ -815,7 +914,7 @@ sed.join %>%
 ```
 
 Revised versions of the above figures to be included in my final thesis. Same data visualized, but done so in a much more polished fashion that matches the format used in the defense.
-``` {r thesis.revisions}
+```{r thesis.revisions}
 
 #Changing reference to sandflat and adding factor levels
 sed.join <- add.sandflat(sed.join)
@@ -1130,7 +1229,7 @@ dev.off()
 
 Reading in the data files for each parameter that contain data for each physical core. This is the most basic level of data detail and can be useful for trying to understand trends without obscuring the potential influence of oddball data points.
 Data files are read in, then joined so that only matching data points to existing N2 flux data are included. Sequential joins are performed. The NA points are removed to get rid of LoRef & HiRef and Summer 2015 cores. The columns are then reorganized and everything is analyzed with a scatterplot matrix.
-``` {r combine.files}
+```{r combine.files}
 
 O2.concs <- read.csv("O2-conc\\clean\\O2-conc-by-core_with-summer15.csv", header = T, stringsAsFactors = F)
 
@@ -1152,7 +1251,7 @@ pairs(final.join[, 6:11], upper.panel = panel.cor)
 ```
 
 Write csvs of data that had been compiled as a result of the above joins for use in PRIMER.
-``` {r export.csv}
+```{r export.csv}
 
 write.csv(final.join, "PRIMER\\clean\\biogeochem-characs_all-seasons_all-sites.csv", row.names = F)
 

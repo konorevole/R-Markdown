@@ -47,13 +47,25 @@ add.sandflat <- function(x){
                                     "sandflat")))
 }
 
-#Function to add a column for restored age
+#Function to add a column for restored age as a CHARACTER
 #Input is the data frame, output is the same data frame with an additional column for age
 #Need to set the factors explicitly in script
 add.age <- function(x){
    mutate(x, Age = ifelse(Site == "IMS" , "0",
                          ifelse(Site == "Carrot", "2",
                                  ifelse(Site == "NOAA", "7", "20"))))
+}
+
+#Function to add a column for restored age as a NUMBER
+#Notice slight but important difference from above!! This function is good for regression graphs
+#or anything requiring age to be treated as a number rather than category.
+#Input is the data frame, output is the same data frame with an additional column for age
+#Need to set the factors explicitly in script, although the above function should probably be used
+#if factors are the ultimate goal.
+add.num.age <- function(x){
+  mutate(x, NumAge = ifelse(Site == "IMS", 0,
+                            ifelse(Site == "Carrot", 2,
+                                   ifelse(Site == "NOAA", 7, 20))))
 }
 
 #Function to add a column with #s for Season instead of words

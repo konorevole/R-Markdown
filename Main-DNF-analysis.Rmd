@@ -37,7 +37,7 @@ DNE <- read.csv("DNE\\clean\\DNE-clean_no-summer15_all-sites.csv", header = T, s
 
 Set the distinguishing labels as factors and implementing the preferred order. Uses set.factors function written by me.
 Also eliminate Summer 2015 and Lo/Hi Ref cores as neither will be used in basic thesis analysis. (Do not match sampling scheme and thereby mess up statistics.) Will deal with these in a separate R Markdown doc if necessary.
-``` {r order.variables}
+```{r order.variables}
 
 #Uses basic factor settings to input NA for Lo/Hi Ref and Summer 2015 cores
 all.N2 <- set.factors.basic(all.N2)
@@ -54,7 +54,7 @@ DNE <- na.omit(DNE)
 ```
 
 Begin by exploring original N2 flux data set for normal distribution and heteroskedasticity. Essentially, every measure fails.
-``` {r normal.checks}
+```{r normal.checks}
 
 #Fails Bartlett Test when grouped by Site and Season; Habitat is ok
 bartlett.test(N2Flux ~ Site, data = basic.N2)
@@ -92,7 +92,7 @@ p1 + stat_qq(aes(sample = N2Flux, colour = Site)) + geom_smooth(aes(colour = Sit
 ```
 
 Normality checks largely failed. Various transformations were attempted (see failed.transformations section of this R Markdown doc) and I ultimately decided to use the Box Cox transformation. The below code identifies the optimal lambda value, applies the transformation, and checks for normality/heteroskedasticity.
-``` {r BoxCox.transform}
+```{r BoxCox.transform}
 
 #Start by finding the optimal value of lambda
 
@@ -199,7 +199,7 @@ TukeyHSD(nested.anova)
 ```
 
 Graphing DNE.
-``` {r DNE.graphs}
+```{r DNE.graphs}
 
 DNE %>%
   ggplot(aes(Site, DNE, fill = CoreName)) +
@@ -208,7 +208,7 @@ DNE %>%
 ```
 
 Creating linear correlations for 
-``` {r linear.models}
+```{r linear.models}
 
 #Eliminate Summer 2015 data points
 no.summer15 <- all.N2[!all.N2$Season == "Summer15", ]
@@ -282,7 +282,7 @@ basic.N2 %>%
 ```
 
 Early attempts to achieve normal distribution within N2 flux rates using a log transformation. Other transformations were attempted (ie square root) but not recorded here because of complete failure.  Ultimately, Box Cox was used for transforming N2 fluxes. The below code has been saved in case it's necessary to return to it.
-``` {r failed.transformations}
+```{r failed.transformations}
 
 #Eliminate Summer 2015 data points
 no.summer15 <- all.N2[!all.N2$Season == "Summer15", ]
@@ -324,7 +324,7 @@ p2 + stat_qq(aes(colour = Site))
 
 ```
 
-``` {r export.csv}
+```{r export.csv}
 
 #CSVs for the Box Cox transformed N2 flux values
 
