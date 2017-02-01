@@ -16,13 +16,13 @@ This document contains code for a regression tree with denitrification rates as 
 Load the packages and functions needed for this analysis.
 ```{r libraries}
 
-library("plyr")
-library("dplyr")
-library("car")
-library("ggplot2")
-library("ggpmisc")
-library("rpart")
-library("rpart.plot")
+library(plyr)
+library(dplyr)
+library(car)
+library(ggplot2)
+library(ggpmisc)
+library(rpart)
+library(rpart.plot)
 
 
 source("functions.R")
@@ -30,7 +30,7 @@ source("functions.R")
 ```
 
 Read in data frames needed for this analysis.
-``` {r load.data}
+```{r load.data}
 
 inund <- read.csv("Inundation\\clean\\inundation-clean_all-sites_all-seasons.csv", header = T)
 inund$Age <- as.numeric(inund$Age)
@@ -48,7 +48,7 @@ DNF <- read.csv("N2-flux\\clean\\N2-flux-by-type_all-seasons_all-sites.csv", hea
 ```
 
 Merging the variables into one data frame for regression tree analysis, "master".
-``` {r combine.data}
+```{r combine.data}
 
 #Sequential merges to combine all relevant data frames into a master data frame
 #Includes all cores and seasons (including Summer 2015) initially- easier to double-check
@@ -78,14 +78,14 @@ master <- plyr::rename(master, c("avg_N2Flux" = "N2flux", "Perc_Inun" = "Inund",
 ```
 
 OPTIONAL: Export csv of combined data for analysis in other scripts. Mostly useful for avoiding repetition and also developing errrors. Writing csv here so
-``` {r export.data}
+```{r export.data}
 
 write.csv(master, "combined-data\\clean\\annual-params_all-seasons_all-sites.csv", row.names = F)
 
 ```
 
 Making modifications to the merged data. This is mostly separated so that a basic csv can be created in above chunk. This code adds columns converting Season & Habitat to #s, and subsets the seasons and sites for separate regression trees.
-``` {r modify.merge}
+```{r modify.merge}
 
 #Use functions I wrote to add columns with Habitat & Season represented by #s
 #Just in case rpart was tempted to do something weird with the characters
@@ -202,5 +202,27 @@ prp(Army.tree)
 
 ```
 
+Using same methodology as above to construct a regression tree without inundation as a factor.
+```{r no.inundation}
 
+#Similar code as before, but dropping inund as a factor to be considered. Do not need to create a new dataframe w/o inund.
+fit.no.inund <- rpart(N2flux ~ SeasonNumber + HabitatNumber + Age + SOM + SOD + O2conc + NOxflux + NH3flux, method = "anova", data = master)
+
+par(mfrow = c(1,2))
+
+#Unpruned tree is identical to tree including inund from what I can tell; this makes sense b/c inund did not come out as a relevant factor.
+summary(fit.no.inund)
+plot(fit.no.inund, uniform = T)
+text(fit.no.inund, use.n = T, all = T, cex = 0.8)
+
+#Pruning the tree similarly as before (see above chunk for details). Following the 1-SE rule was nonsensical- did not prune tree at all- so used smalled CP that would result in meaningful pruning. Same result as before- but good exercise to double-check!
+pruned.no.inund <- prune(fit.no.inund, cp = 0.04)
+
+plot(pruned.no.inund, uniform = T)
+text(pruned.no.inund, use.n = T, all = T, cex = 0.8)
+summary(pruned.no.inund)
+
+#Also checked the site-specific regression trees to ID differences. Weirdly, inundation DID emerge as a factor in the original site trees, so it was obviously eliminated when that factor was removed. This probably isn't something to worry about, because the trees are meant to integrate, but still strange that inundation never carried over to the original tree. Maybe it's b/c there are fewer variables in the site trees?
+
+```
 

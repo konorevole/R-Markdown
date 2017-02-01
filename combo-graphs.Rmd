@@ -14,19 +14,19 @@ This document creates graphs of combined data sets. A running tally of what it i
 **Remember to set working directory**
 
 Loads packages and functions needed for this analysis.
-``` {r libraries}
+```{r libraries}
 
-library("plyr")
-library("dplyr")
-library("ggplot2")
-library("ggpmisc")
-library("ggrepel")
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(ggpmisc)
+library(ggrepel)
 
 source("functions.R")
 ```
 
 Read in csv data.
-``` {r load.data}
+```{r load.data}
 
 annual <- read.csv("combined-data\\clean\\annual-params_all-seasons_all-sites.csv", header = T)
 
@@ -41,7 +41,7 @@ N2O <- read.csv("N2O\\clean\\N2O-by-type_all-seasons_all-sites.csv", header = T)
 ```
 
 General data prep relevant to many combo graphs.  1) Change reference to sandflat and create dataframe with habitat averages; set factors. **This creates a new dataframe called annual.sandflat.** 2) Average each parameter by habitat.
-``` {r general.prep}
+```{r general.prep}
 
 #Convert Ref label to sandflat in annual dataset
 annual.sandflat <- add.sandflat(annual)
@@ -63,7 +63,7 @@ habitat.avgs <- set.factors.habitat(habitat.avgs)
 ```
 
 Prepare data for DNE analysis by combining the habitat average data frame with the one for DNE. Also creating a data frame with annual averages for DNE and other site parameters.
-``` {r prep.DNE}
+```{r prep.DNE}
 
 #Merging the averaged SOD with the pre-averaged DNE for graphing
 DNE.merge <- merge(habitat.avgs, DNE, by = c("Season", "Site", "Habitat"), all.x = T, sort = F)
@@ -79,7 +79,7 @@ annual.DNE.merge <- ddply(DNE.merge, .(Site, Habitat), summarise,
 ```
 
 Graphing DNE in relationship to other factors, such as SOM, SOD, inundation, and NH3 flux. Graphs are on a seasonal and annual basis.
-``` {r DNE.relationships}
+```{r DNE.relationships}
 
 #Formula for 2nd order polynomial equation
 quad.formula <- y ~ poly(x,2)
@@ -163,7 +163,7 @@ p5 + geom_point() +
 ```
 
 Preparing oyster filtration & marsh grass density data for graphing. Involves lots of averaging and creating data frames that match up correctly on varying levels of resolution. This is more limited than usual because the oyster and marsh physical info was only collected for one season.
-``` {r prep.oyster.marsh}
+```{r prep.oyster.marsh}
 
 filtration$Site <- factor(filtration$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
 filtration$Season <- factor(filtration$Season, levels = c("Summer", "Fall", "Winter", "Spring"))
@@ -232,7 +232,7 @@ stem.core.combo <- merge(x = stem.density, y = annual.marsh.core, by = c("Site",
 ```
 
 Graphs of oyster filtration and marsh grass density against other parameters.
-``` {r oyster.marsh.relationships}
+```{r oyster.marsh.relationships}
 
 ##### OYSTER FILTRATION ######
 
@@ -304,8 +304,8 @@ stem.p5 + geom_point(size = 6)
 
 ```
 
-Exploring relationship between N2 flux and other parameters: SOD, O2 concentration, nitroux oxide.
-``` {r N2flux.relationships}
+Exploring relationship between N2 flux and other parameters: SOD, O2 concentration, nitrous oxide.
+```{r N2flux.relationships}
 
 SOD.p1 <- ggplot(habitat.avgs, aes(avg_SOD, avg_N2flux, colour = Site))
 SOD.p1 + geom_point(size = 4)
@@ -318,7 +318,7 @@ O2.p1 + geom_point(size = 4)
 
 ```
 
-``` {r prep.N2O}
+```{r prep.N2O}
 
 N2O.merge <- merge(annual, N2O, by = c("Season", "Site", "CoreName"), all.x = T, sort = F)
 
@@ -327,7 +327,7 @@ N2O.merge <- set.factors.habitat(N2O.merge)
 
 ```
 
-``` {r N2O.relationships}
+```{r N2O.relationships}
 
 #Graphing N2 vs N2O by season shows fall/winter significant and distinct from summer/spring
 N2O.p1 <- ggplot(N2O.merge, aes(N2flux, avg_N2OFlux, colour = Season))
@@ -361,7 +361,7 @@ N2O.p3 + geom_point(size = 4) +
 ```
 
 Creating polished figures for the thesis document. Note that some of the previous data wrangling (ie prep code chunks) is required to properly execute this code.
-``` {r thesis.figs}
+```{r thesis.figs}
 
 #Scatterplot of N2 flux against O2 concentration, color coded by season. This graph uses the annual.sandflat dataframe, which includes averages for each core type (ie LO), for each site & season.
 
