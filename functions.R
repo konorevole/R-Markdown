@@ -138,4 +138,31 @@ panel.cor <- function(x, y, digits = 2, cex.cor, ...)
 }
 
 
+#Function found on Stack Overflow (http://stackoverflow.com/questions/34533472/insert-blanks-into-a-vector-for-e-g-minor-tick-labels-in-r)
+#to add minor tick marks. Not entirely sure how it works, but you generally want inverse = T. Input
+#is the regular breaks (which should be defined beforehand as custom_breaks <- seq(x, x, x)), the
+#inverse of the tick division (ie 2 for tick marks halfway between the breaks), and inverse = T.
+#ex labels = every_nth(custom_breaks, 2, inverse = T)
+#Note that custom_breaks will need to be set as if creating breaks for MINOR ticks, not major ones
+
+every_nth <- function(x, nth, empty = TRUE, inverse = FALSE) 
+{
+  if (!inverse) {
+    if(empty) {
+      x[1:nth == 1] <- ""
+      x
+    } else {
+      x[1:nth != 1]
+    }
+  } else {
+    if(empty) {
+      x[1:nth != 1] <- ""
+      x
+    } else {
+      x[1:nth == 1]
+    }
+  }
+}
+
+
 

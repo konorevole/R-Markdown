@@ -541,7 +541,7 @@ Final versions of figures for submission to Ecological Engineering. Based on the
 ```{r manuscript.figures}
 
 #Average N2 flux for each habitat across seasons, faceted by site
-#Major differences from thesis figures: more spaced out legend, no gridlines, slightly larger labels, y axis scale to -25
+#Major differences from thesis figures: more spaced out legend, no gridlines, slightly larger labels, y axis scale to -25; increased spacing between clumps
 
 avg_DNF_years <- mutate(avg_DNF, Years = ifelse(Site == "IMS" , "0 years",
                          ifelse(Site == "Carrot", "2 years",
@@ -549,37 +549,40 @@ avg_DNF_years <- mutate(avg_DNF, Years = ifelse(Site == "IMS" , "0 years",
 
 avg_DNF_years$Years <- factor(avg_DNF_years$Years, levels = c("0 years", "2 years", "7 years", "20 years"))
 
-tiff("\\Figures\\EcoEng\\N2-flux-by-season", width = 300, height = 250, units = "mm", res = 300, compression = "lzw")
+#1 column- see GitHub for specs for 2 columns
+
+tiff("Figures/EcoEng/N2-flux-by-season.tif", width = 90, height = 200, units = "mm", res = 300)
 
 avg_DNF_years %>%
   ggplot(aes(Habitat, avg_DNF, fill = Season)) +
-  geom_bar(stat = "identity", position = "dodge") +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
   geom_errorbar(aes(ymax = avg_DNF + se_DNF, ymin = avg_DNF - se_DNF), width = 0.3,
-                position = position_dodge(0.9)) +
+                position = position_dodge(0.7)) +
   facet_grid(Years ~ .) +
   xlab(NULL) +
   ylab(expression(paste("Average ", N[2], " flux (", mu, "mol N ", m^-2, " ", h^-1, ")"))) +
   coord_cartesian(ylim = c(-25, 125)) +
   scale_y_continuous(breaks = seq(-25, 125, 25)) +
-  geom_hline(yintercept = 0, size = 0.5, colour = "black") +
-  theme(panel.background = element_rect(fill = "grey97", colour = "black"),
+  geom_hline(yintercept = 0, size = 0.4, colour = "black") +
+  theme(panel.background = element_rect(fill = NA, colour = "black"),
         panel.spacing.y = unit(1.5, "lines"),
-       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+        panel.border = element_rect(colour = "black", fill = NA, size = 0.8),
+       axis.title.y = element_text(margin = margin(r = 5), size = 14),
        axis.line.x = element_line(colour = "black", size = 0.8),
        axis.line.y = element_line(colour = "black", size = 0.8),
        panel.grid.major = element_blank(),
        panel.grid.minor = element_blank(),
-       axis.text.x = element_text(size = 26, colour = "black"),
-       axis.text.y = element_text(size = 12, colour = "black"),
-       strip.text = element_text(size = 20),
-       legend.title = element_text(size = 26, face = "bold"),
-       legend.text = element_text(size = 22)) +
-  guides(fill = guide_legend(keywidth = 0.4, keyheight = 0.4, default.unit = "inch")) +
+       axis.text.x = element_text(size = 14, colour = "black"),
+       axis.text.y = element_text(size = 8, colour = "black"),
+       strip.text = element_text(size = 12),
+       legend.title = element_blank(),
+       legend.text = element_text(size = 8),
+       legend.position = "bottom",
+       legend.box.spacing = unit(6, "mm"),
+       legend.box.background = element_rect(fill = NA, colour = "black", size = 0.7)) +
+  guides(fill = guide_legend(keywidth = 6, keyheight = 6, default.unit = "mm")) +
   scale_fill_manual(values = c("darkgoldenrod1", "darkred", "darkblue", "darkgreen"),
-                         labels = c("  Summer",
-                                 "  Fall",
-                                 "  Winter",
-                                 "  Spring"))
+                         labels = c(" Summer ", "Fall ", "Winter ", "Spring"))
 
 dev.off()
 
@@ -594,27 +597,29 @@ annual_eff_years$Years <- factor(annual_eff_years$Years, levels = c("0 years", "
 annual_eff_years <- add.age(annual_eff_years)
 annual_eff_years$Age <- as.numeric(annual_eff_years$Age)
 
-tiff("\\Figures\\EcoEng\\annual-DNE", width = 300, height = 250, units = "mm", res = 300, compression = "lzw")
+#1 column
+
+tiff("Figures/EcoEng/annual-DNE.tif", width = 90, height = 70, units = "mm", res = 300)
 
 annual_eff_years %>%
   ggplot(aes(Habitat, annual_eff, fill = Years)) +
-  geom_bar(stat = "identity", position = "dodge") +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
   geom_errorbar(aes(ymax = annual_eff + se_eff, ymin = annual_eff - se_eff), width = 0.3,
-                position = position_dodge(0.9)) +
+                position = position_dodge(0.7)) +
   xlab(NULL) +
   ylab("Average denitrification efficiency (%)") +
-  theme(panel.background = element_rect(fill = "white", colour = NA),
-       axis.title.y = element_text(margin = margin(r = 15), size = 26),
+  theme(panel.background = element_rect(fill = NA, colour = NA),
+       axis.title.y = element_text(margin = margin(r = 8), size = 10),
        axis.line.x = element_line(colour = "black", size = 0.8),
        axis.line.y = element_line(colour = "black", size = 0.8),
        panel.grid.major.y = element_blank(),
-       axis.text.x = element_text(size = 28, colour = "black"),
-       axis.text.y = element_text(size = 16, colour = "black"),
-       strip.text = element_text(size = 20),
-       legend.title = element_text(size = 25, face = "bold"),
-       legend.text = element_text(size = 22)) +
-  guides(fill = guide_legend(title = "Restored Age", 
-                             keywidth = 0.4, keyheight = 0.4, default.unit = "inch")) +
+       axis.text.x = element_text(size = 9, colour = "black"),
+       axis.text.y = element_text(size = 8, colour = "black"),
+       legend.title = element_text(size = 8, face = "bold"),
+       legend.text = element_text(size = 7),
+       legend.position = "right") +
+  guides(fill = guide_legend(title = "Restored \nAge\n", 
+                            keywidth = 4, keyheight = 4, default.unit = "mm")) +
   scale_fill_manual(values = c("slategray2", "skyblue2", "skyblue3", "skyblue4"),
                     labels = c("  0 years",
                                "  2 years",
@@ -624,6 +629,7 @@ annual_eff_years %>%
 
 dev.off()
 
+
 #Average annual N2O flux by restored age, divided by habitat
 #Major changes: axis from 0.05 to -0.20; no gridlines; no x axis tick marks; more spaced-out legend
 #**maybe changing spacing of clumps?? 
@@ -631,26 +637,29 @@ dev.off()
 annual.N2O.age <- add.age(annual.N2O)
 annual.N2O.age$Age <- factor(annual.N2O.age$Age, levels = c("0", "2", "7", "20"))
 
-tiff("\\Figures\\EcoEng\\annual-N2O-flux-by-habitat", width = 300, height = 250, units = "mm", res = 300, compression = "lzw")
+tiff("Figures/EcoEng/N2O-flux-by-habitat.tif", width = 90, height = 90, units = "mm", res = 300)
 
 annual.N2O.age %>%
   ggplot(aes(Age, annual_N2O, fill = Habitat)) +
-  geom_bar(stat = "identity", position = "dodge", width = 0.8) +
-  geom_errorbar(aes(ymin = annual_N2O - se, ymax = annual_N2O + se), position = position_dodge(0.8), width = 0.3) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_errorbar(aes(ymin = annual_N2O - se, ymax = annual_N2O + se),
+                position = position_dodge(0.7), width = 0.3) +
   coord_cartesian(ylim = c(-0.20, 0.05)) +
   theme(panel.background = element_rect(fill = "white", colour = NA),
-       axis.title.y = element_text(margin = margin(r = 15), size = 28),
-       axis.title.x = element_text(margin = margin(t = 15), size = 28),
+       axis.title.y = element_text(margin = margin(r = 15), size = 10),
+       axis.title.x = element_text(margin = margin(t = 15), size = 10),
        axis.line.y = element_line(colour = "black", size = 0.8),
        axis.ticks.x = element_blank(),
        panel.grid.major.y = element_blank(),
-       axis.text.x = element_text(size = 18, colour = "black"),
-       axis.text.y = element_text(size = 18, colour = "black"),
-       legend.title = element_text(size = 25, face = "bold"),
-       legend.text = element_text(size = 20)) +
+       axis.text.x = element_text(size = 7, colour = "black"),
+       axis.text.y = element_text(size = 7, colour = "black"),
+       legend.title = element_blank(),
+       legend.text = element_text(size = 8),
+       legend.position = c(0.8, 0.2)) +
+       #legend.box.background = element_rect(fill = NA, colour = "black", size = 0.7)) +
    xlab("Restored age (years)") +
    ylab(expression(paste("Average ", N[2], "O flux (", mu, "mol ", N[2], "O ", m^-2, " ", h^-1, ")"))) +
-   guides(fill = guide_legend(keywidth = 0.4, keyheight = 0.4, default.unit = "inch")) +
+   guides(fill = guide_legend(keywidth = 4, keyheight = 4, default.unit = "mm")) +
    scale_fill_manual(values = c("darkorchid4", "olivedrab", "darkgoldenrod"),
                       labels = c("  oyster",
                                  "  marsh",
@@ -662,6 +671,36 @@ dev.off()
 
 ```
 
+Code for manuscript-sized
+```{r revised.manuscript.figs}
+
+#Code for DNE graph with 90 width (1/2 pg) and whatever corresponding height
+annual_eff_years %>%
+  ggplot(aes(Habitat, annual_eff, fill = Years)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymax = annual_eff + se_eff, ymin = annual_eff - se_eff), width = 0.3,
+                position = position_dodge(0.9)) +
+  xlab(NULL) +
+  ylab("Average denitrification efficiency (%)") +
+  theme(panel.background = element_rect(fill = NA, colour = NA),
+       axis.title.y = element_text(margin = margin(r = 8), size = 14),
+       axis.line.x = element_line(colour = "black", size = 0.8),
+       axis.line.y = element_line(colour = "black", size = 0.8),
+       panel.grid.major.y = element_blank(),
+       axis.text.x = element_text(size = 8, colour = "black"),
+       axis.text.y = element_text(size = 12, colour = "black"),
+       legend.title = element_text(size = 10, face = "bold"),
+       legend.text = element_text(size = 8)) +
+  guides(fill = guide_legend(title = "Restored \nAge\n")) + 
+                            # keywidth = 3, keyheight = 3, default.unit = "mm")) +
+  scale_fill_manual(values = c("slategray2", "skyblue2", "skyblue3", "skyblue4"),
+                    labels = c("  0 years",
+                               "  2 years",
+                               "  7 years",
+                               "  20 years")) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 100))
+
+```
 
 ```{r idk}
 
