@@ -603,11 +603,12 @@ tiff("Figures/EcoEng/annual-DNE.tif", width = 90, height = 70, units = "mm", res
 
 annual_eff_years %>%
   ggplot(aes(Habitat, annual_eff, fill = Years)) +
+  geom_hline(yintercept = 50, colour = "grey40", linetype = "dotted") +
   geom_bar(stat = "identity", position = "dodge", width = 0.7) +
   geom_errorbar(aes(ymax = annual_eff + se_eff, ymin = annual_eff - se_eff), width = 0.3,
                 position = position_dodge(0.7)) +
   xlab(NULL) +
-  ylab("Average denitrification efficiency (%)") +
+  ylab("Average DNE (%)") +
   theme(panel.background = element_rect(fill = NA, colour = NA),
        axis.title.y = element_text(margin = margin(r = 8), size = 10),
        axis.line.x = element_line(colour = "black", size = 0.8),
@@ -649,7 +650,8 @@ annual.N2O.age %>%
        axis.title.y = element_text(margin = margin(r = 15), size = 10),
        axis.title.x = element_text(margin = margin(t = 15), size = 10),
        axis.line.y = element_line(colour = "black", size = 0.8),
-       axis.ticks.x = element_blank(),
+       axis.line.x = element_blank(),
+       #axis.ticks.x = element_blank(),
        panel.grid.major.y = element_blank(),
        axis.text.x = element_text(size = 7, colour = "black"),
        axis.text.y = element_text(size = 7, colour = "black"),
