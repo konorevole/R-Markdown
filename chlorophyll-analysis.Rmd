@@ -1,0 +1,131 @@
+---
+title: "chlorophyll-analysis"
+author: "Kathleen Onorevole"
+date: "March 3, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This document analyzes the chlorophyll a data collected as part of the oyster/marsh chronosequence.
+
+**Remember to set working directory**
+
+Load the packages needed for this analysis
+```{r libraries}
+
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(ggpmisc)
+library(car)
+
+source("functions.R")
+```
+
+Read in data and order factors correctly. "All" includes Lo and Hi Ref cores; "basic" excludes them and refers to Reference as Sandflat in the Habitat column.
+```{r load.data}
+
+chl.all <- read.csv("chlorophyll//clean//chl-clean-orig-habitats_all-seasons_all-sites.csv", header = T)
+
+chl.basic <- read.csv("chlorophyll//clean//chl-clean-noLoHi_all-seasons_all-sites.csv", header = T)
+
+chl.all <- set.factors(chl.all)
+chl.all$Habitat <- factor(chl.all$Habitat, levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+chl.basic$Season <- factor(chl.basic$Season, levels = c("Summer", "Fall", "Winter", "Spring", "Summer15"))
+chl.basic$Site <- factor(chl.basic$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
+chl.basic$CoreName <- factor(chl.basic$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref"))
+
+```
+
+Create basic graphs of average chlorophyll.
+```{r visualizing}
+
+chl.all.avg <- ddply(chl.all, c("Season", "Site", "CoreName"), summarise,
+                     avg.chl = mean(chla_conc),
+                     N = length(chla_conc),
+                     stdev = sd(chla_conc),
+                     SE = stdev / sqrt(N))
+
+chl.basic.avg <- ddply(chl.basic, c("Season", "Site", "CoreName"), summarise,
+                     avg.chl = mean(chla_conc),
+                     N = length(chla_conc),
+                     stdev = sd(chla_conc),
+                     SE = stdev / sqrt(N))
+
+chl.all.avg %>%
+  filter(Season == "Spring") %>%
+  ggplot(aes(Site, avg.chl)) +
+  geom_bar(aes(fill = CoreName), stat = "identity", position = "dodge")
+
+#Using stat_summary to automatically calculate mean values to explore data
+p1 <- ggplot(chl.all.avg, aes(CoreName, avg.chl, fill = Site))
+p1 + stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
+  stat_summary(fun.y = median, geom = "point", colour = "black", position = position_dodge(width = 0.9)) +
+  facet_grid(Season ~ .)
+
+chl.all %>%
+  ggplot(aes(Habitat, chla_conc, fill = CoreName)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge")
+
+chl.basic %>%
+  ggplot(aes(Habitat, chla_conc, fill = CoreName)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge")
+
+chl.all.avg %>%
+  filter(CoreName == "HM") %>%
+  ggplot(aes(Site, avg.chl)) +
+  geom_boxplot()
+
+
+```
+
+!!This run before IMS Fall HO3 was eliminated. Should rerun after getting rid of that.
+Checking whether chlorophyll data meet assumptions of ANOVA when grouped in various ways.
+```{r assumptions}
+
+#Checking all data first: Fails Bartlett test for Core Name, Site, Season; passes for Habitat
+bartlett.test(chla_conc ~ CoreName, data = chl.all)
+bartlett.test(chla_conc ~ Site, data = chl.all)
+bartlett.test(chla_conc ~ Season, data = chl.all)
+bartlett.test(chla_conc ~ Habitat, data = chl.all)
+leveneTest(chla_conc ~ CoreName, data = chl.all)
+
+#Checking basic data: Fails Bartlett for all
+bartlett.test(chla_conc ~ CoreName, data = chl.basic)
+bartlett.test(chla_conc ~ Site, data = chl.basic)
+bartlett.test(chla_conc ~ Season, data = chl.basic)
+bartlett.test(chla_conc ~ Habitat, data = chl.basic)
+
+#Modify below code to explore histograms for data sets, including and excluding Lo & Hi Ref
+#Also interesting to explore phaeo conc and chl:phaeo ratio w histograms
+#Habitat, Site, & Season look ok, CoreName is pretty spread out
+chl.all %>%
+  ggplot(aes(chla_conc)) +
+  geom_histogram(stat = "bin", binwidth = 10) +
+  facet_grid(Site ~ .)
+
+chl.basic %>%
+  ggplot(aes(phaeo_conc)) +
+  geom_histogram(stat = "bin", binwidth = 10) +
+  facet_grid(Site ~ .)
+
+test.norm.all.CoreName <- chl.all %>%
+  group_by(CoreName) %>%
+  summarise(SW.pvalue = shapiro.test(chla_conc)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+
+
+test.norm.basic.CoreName <- chl.basic %>%
+  group_by(CoreName) %>%
+  summarise(SW.pvalue = shapiro.test(chla_conc)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.5, "Normal", "Non-Normal"))
+
+
+
+```
+

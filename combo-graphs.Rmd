@@ -229,6 +229,13 @@ annual.marsh.core <- ddply(annual.marsh, .(Site, CoreName), summarise,
 #Combine stem density & other site parameters based on core name and site
 stem.core.combo <- merge(x = stem.density, y = annual.marsh.core, by = c("Site", "CoreName"))
 
+#Later, adding a data frame calculating stem density with SE
+stem.summary <-   ddply(stem.density, .(Site), summarise,
+                      avg_density = mean(adj_density),
+                      n = length(adj_density),
+                      stdev = sd(adj_density),
+                      SE = stdev / sqrt(n))
+
 ```
 
 Graphs of oyster filtration and marsh grass density against other parameters.

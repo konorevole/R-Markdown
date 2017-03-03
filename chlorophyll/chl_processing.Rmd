@@ -1,0 +1,84 @@
+---
+title: "chl_processing"
+author: "Kathleen Onorevole"
+date: "March 2, 2017"
+output: html_document
+---
+
+This is the processing script for the chlorophyll a data. This script reads in the raw data, adds habitat and age columns, sets factor levels, and exports a clean csv. There is an optional script for calculating the averages of each core type and exporting that csv (ie for PRIMER).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Remember to set the working directory**
+
+Load the packages needed for these analyses
+```{r libraries, include = F}
+
+library(plyr)
+library(dplyr)
+
+source("functions.R")
+```
+
+Read in the raw data
+```{r read.in.data}
+
+chl.raw <- read.csv("chlorophyll/raw/chla_all-seasons_all-sites.csv", header = T, stringsAsFactors = F)
+
+```
+
+Set factors for Season, Site, and Core Name. Add columns for age & set factors. Screen data for suspiciously high or low chlorophyll:phaeophytin ratio and eliminate faulty data.
+Create 2 data frames based on habitats. First one creates habitat column that includes LoRef & HiRef. Second eliminates those samples and renames Ref as sandflat.
+```{r order.variables}
+
+chl.new <- set.factors(chl.raw)
+
+#Excluding between oyster cores collected only in summer 2014 at IMS
+BTO <- is.na(chl.new$CoreName)
+chl.new <- chl.new[!BTO, ]
+
+row.names(chl.new) <- NULL
+
+#Screening data for samples with a high chlorophyll:phaeophytin ratio (should be ~ 1.0 - 1.7)
+high.ratio <- which(chl.new$chl_phaeo_ratio > 1.7)
+chl.new[high.ratio, ]
+#Dropping Fall Carrot LO2, which has a chlorophyll:phaeophytin ratio of 4.1. This sample was already flagged for having a strange 665 absorbance, so something clearly went wrong and the data are not useful.
+chl.drop <- chl.new[-68, ]
+row.names(chl.drop) <- NULL
+
+#Screening data for low chlorophyll:phaeophytin ratio. None of the data are low enough to eliminate, altho some should be reviewed during analysis.
+low.ratio <- which(chl.drop$chl_phaeo_ratio < 1.2)
+chl.drop[low.ratio, ]
+
+#Dropping Fall IMS HO3, which has the lowest chl:phaeo ratio as well as (more concerningly) the only negative chlorophyll concentration. There was likely something off with this sample since all 3 of its parameters are outliers.
+chl.drop <- chl.drop[-88, ]
+row.names(chl.drop) <- NULL
+
+chl.expanded <- add.age(chl.drop)
+chl.expanded$Age <- factor(chl.expanded$Age, levels = c("0", "2", "7", "20"))
+
+#Creating data frame that includes Ref, LoRef, & HiRef
+chl.LoHiRef <- add.habitat(chl.expanded)
+chl.LoHiRef$Habitat <- factor(chl.LoHiRef$Habitat,
+                               levels = c("oyster", "marsh", "Ref", "LoRef", "HiRef"))
+
+#Creating data frame without LoRef & HiRef
+LoHiRef <- which(chl.expanded$CoreName == "LoRef" | chl.expanded$CoreName == "HiRef")
+chl.noLoHi <- chl.expanded[-LoHiRef, ]
+#Adding habitat column that uses "sandflat" instead of "Reference"
+chl.sandflat <- add.sandflat(chl.noLoHi)
+chl.sandflat$Habitat <- factor(chl.sandflat$Habitat, levels = c("oyster", "marsh", "sandflat"))
+
+```
+
+Write 2 csvs for clean data: one with all habitats, and one without LoRef or HiRef, and with Reference relabeled as Sandflat.
+```{r clean.csv}
+
+write.csv(chl.LoHiRef, "chlorophyll\\clean\\chl-clean-orig-habitats_all-seasons_all-sites.csv",
+          row.names = F)
+
+write.csv(chl.sandflat, "chlorophyll\\clean\\chl-clean-noLoHi_all-seasons_all-sites.csv", row.names = F)
+
+```
