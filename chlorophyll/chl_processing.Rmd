@@ -48,7 +48,7 @@ chl.new[high.ratio, ]
 chl.drop <- chl.new[-68, ]
 row.names(chl.drop) <- NULL
 
-#Screening data for low chlorophyll:phaeophytin ratio. None of the data are low enough to eliminate, altho some should be reviewed during analysis.
+#Screening data for low chlorophyll:phaeophytin ratio.
 low.ratio <- which(chl.drop$chl_phaeo_ratio < 1.2)
 chl.drop[low.ratio, ]
 
