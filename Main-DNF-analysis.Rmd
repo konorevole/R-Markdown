@@ -14,13 +14,13 @@ knitr::opts_chunk$set(echo = TRUE)
 Load the packages required for these analyses. Also source the functions script.
 ```{r libraries}
 
-library("plyr")
-library("dplyr")
-library("ggplot2")
-library("ggpmisc")
-library("lmtest")
-library("car")
-library("MASS")
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(ggpmisc)
+library(lmtest)
+library(car)
+library(MASS)
 
 source("functions.R")
 
@@ -53,7 +53,7 @@ DNE <- na.omit(DNE)
 
 ```
 
-Begin by exploring original N2 flux data set for normal distribution and heteroskedasticity. Essentially, every measure fails.
+Begin by exploring original N2 flux data set for normal distribution and heteroskedasticity. Essentially, every measure fails. Includes code at end added in March 2017 to check for normality of residuals.
 ```{r normal.checks}
 
 #Fails Bartlett Test when grouped by Site and Season; Habitat is ok
@@ -89,9 +89,33 @@ basic.N2 %>%
 p1 <- ggplot(basic.N2)
 p1 + stat_qq(aes(sample = N2Flux, colour = Site)) + geom_smooth(aes(colour = Site), method = "lm")
 
+
+#Below section added in March 2017 during review of ANOVA assumptions, after realizing that normality check should be on residuals, not raw data.
+
+#Checking untransformed N2 fluxes with 3-way interactive setup for normality of RESIDUALS check
+basic.model <- lm(N2Flux ~ Season * Site * CoreName, data = basic.N2)
+resids.basic <- residuals(basic.model)
+qqnorm(resids.basic)
+qqline(resids.basic)
+
+#Fails Shapiro test when set up for normality of RESIDUALS. Passes Levene.
+shapiro.test(resids.basic)
+leveneTest(N2Flux ~ Season * Site * CoreName, data = basic.N2)
+
+#Setting up similar as before, but now 2-way with just Season & Site
+basic.model2 <- lm(N2Flux ~ Season * Site, data = basic.N2)
+resids.basic2 <- residuals(basic.model2)
+qqnorm(resids.basic2)
+qqline(resids.basic2)
+
+#Still fails Shapiro, and also Levene
+shapiro.test(resids.basic2)
+leveneTest(N2Flux ~ Season * Site, data = basic.N2)
+
 ```
 
 Normality checks largely failed. Various transformations were attempted (see failed.transformations section of this R Markdown doc) and I ultimately decided to use the Box Cox transformation. The below code identifies the optimal lambda value, applies the transformation, and checks for normality/heteroskedasticity.
+See end for code added in March 2017 to address the normality of residuals rather than the raw data.
 ```{r BoxCox.transform}
 
 #Start by finding the optimal value of lambda
@@ -150,6 +174,52 @@ BC.norm.Habitat <- BC.N2 %>%
   summarise(SW.pvalue = shapiro.test(N2BoxCox)$p.value) %>%
   mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
+
+##Below section added in March 2017 to check the assumptions with the knowledge that you're supposed to check normality of RESIDUALS rather than raw data. Run on BoxCox transformed values as well as for untransformed values in previous section.
+
+#Setting up model based on interactive 3-way design and pulling out residuals.
+BC.model3 <- lm(N2BoxCox ~ Season * Site * Habitat, data = BC.N2)
+BC.resids3 <- residuals(BC.model3)
+qqnorm(BC.resids3)
+qqline(BC.resids3)
+
+#BoxCox transformed N2 fluxes pass both Shapiro (when checking for normality of RESIDUALS) and Levene!
+shapiro.test(BC.resids3)
+leveneTest(N2BoxCox ~ Season * Site * Habitat, data = BC.N2)
+
+#Checking 2-way model of same. This is the more relevant model because we ultimately ended up dropping CoreName/Habitat as a significant variable and instead exploring the difference among season and sites.
+BC.model2 <- lm(N2BoxCox ~ Season * Site, data = BC.N2)
+BC.resids2 <- residuals(BC.model2)
+qqnorm(BC.resids2)
+qqline(BC.resids2)
+
+#Fails both Shapiro and Levene when Habitat is dropped, possibly b/c Site is so off... Or because the levels of grouping in this scenario are weird?
+shapiro.test(BC.resids2)
+leveneTest(N2BoxCox ~ Season * Site, data = BC.N2)
+
+BC.season.model <- lm(N2BoxCox ~ Season, data = BC.N2)
+shapiro.test(residuals(BC.season.model))
+
+BC.site.model <- lm(N2BoxCox ~ Site, data = BC.N2)
+shapiro.test(residuals(BC.site.model))
+
+BC.habitat.model <- lm(N2BoxCox ~ Habitat, data = BC.N2)
+shapiro.test(residuals(BC.habitat.model))
+
+#Transformed data pass heterosked test when analyzed separately
+leveneTest(N2BoxCox ~ Site, data = BC.N2)
+leveneTest(N2BoxCox ~ Season, data = BC.N2)
+
+#Boxplots of Site, Season, and Site*Season. The first two look generally ok- variances aren't dead-on equal but there don't seem to be egregious problems. The combo graph, not so much. I can't find a clear-cut answer as to whether, for a 2-way ANOVA, the variances need to be equal based on the 2-way groupings. However, there aren't major conclusions based on this 2-way ANOVA (the 3-way is more important), so maybe it's not a dealbreaker.
+ggplot(BC.N2, aes(Site, N2BoxCox)) + geom_boxplot()
+ggplot(BC.N2, aes(Season, N2BoxCox)) + geom_boxplot()
+boxplot(N2BoxCox ~ Site * Season, data = BC.N2)
+
+#Checking boxplots for the untransformed data
+ggplot(basic.N2, aes(Site, N2Flux)) + geom_boxplot()
+ggplot(basic.N2, aes(Season, N2Flux)) + geom_boxplot()
+boxplot(N2Flux ~ Site * Season, data = basic.N2)
+
 ```
 
 Running ANOVAs on the Box Cox transformed N2 flux values.
@@ -177,22 +247,22 @@ summary(habitat.anova)
 TukeyHSD(habitat.anova)
 
 #Run ANOVA treating Season & Site independently
-indep.anova <- aov(N2Flux ~ Season + Site, data = BC.N2)
+indep.anova <- aov(N2BoxCox ~ Season + Site, data = BC.N2)
 summary(indep.anova)
 TukeyHSD(indep.anova)
 
 #3-way ANOVA with interaction between Season & Habitat
 #Habitat was not significant, so it was dropped for refined subsequent ANOVA
-interact.anova <- aov(N2Flux ~  Habitat * Site * Season, data = BC.N2)
+interact.anova <- aov(N2BoxCox ~  Habitat * Site * Season, data = BC.N2)
 summary(interact.anova)
 TukeyHSD(interact.anova)
 
 #2-way interactive ANOVA with Site & Season
-interact2 <- aov(N2Flux ~ Site * Season, data = BC.N2)
+interact2 <- aov(N2BoxCox ~ Site * Season, data = BC.N2)
 summary(interact2)
 TukeyHSD(interact2)
 
-nested.anova <- aov(N2Flux ~ (Season + Site) / Habitat, data = BC.N2)
+nested.anova <- aov(N2BoxCox ~ (Season + Site) / Habitat, data = BC.N2)
 summary(nested.anova)
 TukeyHSD(nested.anova)
 
@@ -309,7 +379,7 @@ test.norm.log.Site <- log.Site %>%
 test.norm.log.Habitat <- log.Site %>%
   group_by(Habitat) %>%
   summarise(SW.pvalue = shapiro.test(log_N2Flux)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue < 0.05, "Normal", "Non-Normal"))
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
 
 #Exploring log-transformed values w/ histograms by Site
 #Data are right-skewed, altho general bell shape is slightly better

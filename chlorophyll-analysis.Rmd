@@ -39,10 +39,7 @@ chl.basic$Season <- factor(chl.basic$Season, levels = c("Summer", "Fall", "Winte
 chl.basic$Site <- factor(chl.basic$Site, levels = c("IMS", "Carrot", "NOAA", "Army"))
 chl.basic$CoreName <- factor(chl.basic$CoreName, levels = c("LO", "HO", "LM", "MM", "HM", "Ref"))
 
-```
-
-Create basic graphs of average chlorophyll.
-```{r visualizing}
+#Creating dataframes averaging the observations and calculating other summary stats useful for graphing
 
 chl.all.avg <- ddply(chl.all, c("Season", "Site", "CoreName"), summarise,
                      avg.chl = mean(chla_conc),
@@ -55,6 +52,182 @@ chl.basic.avg <- ddply(chl.basic, c("Season", "Site", "CoreName"), summarise,
                      N = length(chla_conc),
                      stdev = sd(chla_conc),
                      SE = stdev / sqrt(N))
+
+```
+
+Checking whether chlorophyll data meet assumptions of ANOVA when grouped in various ways.
+```{r assumptions}
+
+#Eliminating Summer 2015 since that won't be included in the overall ANOVA
+chl.main.avgs <- chl.basic.avg[!chl.basic.avg$Season == "Summer15", ]
+
+#Creating model grouping by Season and checking normal distribution of RESIDUALS and heterosked
+main.model <- lm(avg.chl ~ Season, data = chl.main.avgs)
+main.res <- residuals(main.model)
+qqnorm(residuals(main.model))
+qqline(residuals(main.model))
+
+#Passes normality OF RESIDUALS, passes heterosked grouped by CoreName, fails heterosked grouped by Season
+#Using Levene Test because I've since read that it's preferred
+shapiro.test(main.res)
+leveneTest(avg.chl ~ Season, data = chl.main.avgs)
+leveneTest(avg.chl ~ CoreName, data = chl.main.avgs)
+
+plot(avg.chl ~ Season, data = chl.main.avgs)
+plot(chl.main.avgs$Season, main.res, ylab = "Residuals", xlab = "Season")
+plot(main.model$fitted.values, main.res, ylab = "Residuals", xlab = "Predicted")
+
+
+#Create model grouping by Season and CoreName (proxy for elevation) -- This is a more realistic way to examine the data altho the "elevations" could be collapsed into habitats in future.
+mainmod2 <- lm(avg.chl ~ Season + CoreName, data = chl.main.avgs)
+main2res <- residuals(mainmod2)
+qqnorm(main2res)
+qqline(main2res)
+
+#Checking for normality OF RESIDUALS (passes)
+#Heterosked passes when looking at Season & Core Name as multiple independent variables... not sure what this means??
+shapiro.test(main2res)
+leveneTest(avg.chl ~ Season * CoreName, data = chl.main.avgs)
+
+#Visualizing boxplots of chl grouped by CoreName & color-coded by Season (can swap)
+chl.main.avgs %>%
+  ggplot(aes(CoreName, avg.chl, colour = Season)) +
+  geom_boxplot()
+
+#ANOVA indicates that, when run as independent variables, only Season is significant
+# ***This seems to be the most salient result of this chunk***
+anova2 <- aov(avg.chl ~ Season + CoreName, data = chl.main.avgs)
+summary(anova2)
+TukeyHSD(anova2)
+
+
+#Attempting the same process using Season & Habitat, mostly out of curiosity (this is probably not a statistically-sound way to go about looking for significance).
+
+#First using my function to add a habitat column to the averaged core data.
+chl.main.habitat <- add.habitat(chl.main.avgs)
+chl.main.habitat$Habitat <- factor(chl.main.habitat$Habitat, levels = c("oyster", "marsh", "Ref"))
+
+#Creating the linear model and visualizing a QQ plot
+hab.model <- lm(avg.chl ~ Season * Habitat, data = chl.main.habitat)
+hab.res <- residuals(hab.model)
+qqnorm(hab.res)
+qqline(hab.res)
+
+#Passes both normality OF RESIDUALS and heterosked
+shapiro.test(hab.res)
+leveneTest(avg.chl ~ Season * Habitat, data = chl.main.habitat)
+
+#ANOVA indicates sig diff only for Season
+hab.anova <- aov(avg.chl ~ Season + Habitat, data = chl.main.habitat)
+summary(hab.anova)
+TukeyHSD(hab.anova)
+
+site.model <- lm(avg.chl ~ Season * Site, data = chl.main.avgs)
+resids.site <- residuals(site.model)
+qqnorm(resids.site)
+qqline(resids.site)
+
+shapiro.test(resids.site)
+leveneTest(avg.chl ~ Season * Site, data = chl.main.avgs)
+
+site.anova <- aov(avg.chl ~ Season * Site, data = chl.main.avgs)
+summary(site.anova)
+
+#Exploring assumptions with all the replicates thrown in but excluding Summer 2015. This will probably not be the way to go, b/c chl is so variable that the replicates aren't true replicates.
+reps.noS15 <- filter(chl.basic, !Season == "Summer15")
+
+reps.model <- lm(chla_conc ~ Season + CoreName, data = reps.noS15)
+qqnorm(residuals(reps.model))
+qqline(residuals(reps.model))
+shapiro.test(residuals(reps.model))
+
+#### OLD CODE for assumption testing HIDDEN ####
+
+#Checking all data first: Fails Bartlett test for Core Name, Site, Season; passes for Habitat
+bartlett.test(chla_conc ~ CoreName, data = chl.all)
+bartlett.test(chla_conc ~ Site, data = chl.all)
+bartlett.test(chla_conc ~ Season, data = chl.all)
+bartlett.test(chla_conc ~ Habitat, data = chl.all)
+leveneTest(chla_conc ~ CoreName, data = chl.all)
+
+bartlett.test(avg.chl ~ CoreName, data = chl.all.avg)
+leveneTest(avg.chl ~ Site, data = chl.all.avg)
+
+#Checking basic data: Fails Bartlett for all
+bartlett.test(chla_conc ~ CoreName, data = chl.basic)
+bartlett.test(chla_conc ~ Site, data = chl.basic)
+bartlett.test(chla_conc ~ Season, data = chl.basic)
+bartlett.test(chla_conc ~ Habitat, data = chl.basic)
+
+#Modify below code to explore histograms for data sets, including and excluding Lo & Hi Ref
+#Also interesting to explore phaeo conc and chl:phaeo ratio w histograms
+#Habitat, Site, & Season look ok, CoreName is pretty spread out
+chl.all %>%
+  ggplot(aes(chla_conc)) +
+  geom_histogram(stat = "bin", binwidth = 10) +
+  facet_grid(CoreName ~ .)
+
+chl.basic %>%
+  ggplot(aes(phaeo_conc)) +
+  geom_histogram(stat = "bin", binwidth = 10) +
+  facet_grid(Site ~ .)
+
+test.norm.all.CoreName <- chl.all %>%
+  group_by(CoreName) %>%
+  summarise(SW.pvalue = shapiro.test(chla_conc)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
+
+test.norm.basic.CoreName <- chl.basic %>%
+  group_by(CoreName) %>%
+  summarise(SW.pvalue = shapiro.test(chla_conc)$p.value) %>%
+  mutate(Result = ifelse(SW.pvalue > 0.5, "Normal", "Non-Normal"))
+
+#Trying different transformations to meet assumptions
+all.trans <- ddply(chl.all, c("Season", "Site", "CoreName", "CoreNo", "Habitat"), summarise,
+                   sq_trans = chla_conc ^ 2,
+                   sqrt_trans = chla_conc ^ (1/2),
+                   ln_trans = log(chla_conc))
+
+bartlett.test(sqrt_trans ~ Season, all.trans)
+leveneTest(sqrt_trans ~ Season, all.trans)
+
+chl.all.avg %>%
+  ggplot(aes(avg.chl)) +
+  geom_histogram(stat = "bin", binwidth = 10) +
+  facet_grid(Site ~ .)
+
+#Further exploring the ln transformation
+log.fit <- lm(ln_trans ~ CoreName + Season, data = all.trans)
+
+all.trans$resids <- residuals(log.fit)
+all.trans$preds <- predict(log.fit)
+plot(resids ~ preds, data = all.trans, xlab = "Predicted Values", ylab = "Residuals")
+
+qqnorm(all.trans$resids)
+qqline(all.trans$resids)
+
+plot(all.trans$resids)
+abline(0,0)
+
+hist(all.trans$resids)
+
+shapiro.test(all.trans$resids)
+leveneTest(ln_trans ~ CoreName, data = all.trans)
+leveneTest(ln_trans ~ Season, data = all.trans)
+
+```
+
+Create basic graphs of average chlorophyll.
+```{r visualizing}
+
+chl.main.avgs %>%
+  ggplot(aes(Site, avg.chl, fill = Season)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge")
+
+chl.main.habitat %>%
+  ggplot(aes(Site, avg.chl, fill = Season)) +
+  stat_summary(fun.y = mean, geom = "bar", position = "dodge") +
+  facet_grid(Habitat ~ .)
 
 chl.all.avg %>%
   filter(Season == "Spring") %>%
@@ -113,186 +286,26 @@ chl.all.avg %>%
 
 ```
 
-!!This run before IMS Fall HO3 was eliminated. Should rerun after getting rid of that.
-Checking whether chlorophyll data meet assumptions of ANOVA when grouped in various ways.
-```{r assumptions}
+Comparing summers 2015 and 2016.
+```{r summer.comparison}
 
-#Eliminating Summer 2015 since that won't be included in the overall ANOVA
-chl.main.avgs <- chl.basic.avg[!chl.basic.avg$Season == "Summer15", ]
+#Creating new data frame with only Summer 2014 and 2015 data, and only LO, HO, and MM cores. Summer 2015 was abbreviated sampling with only 3 sets of cores collected at each location, so that's all that should be analyzed when considering the summer data.
+chl.summer <- chl.all.avg %>%
+  filter(Season == "Summer" | Season == "Summer15") %>%
+  filter(CoreName == "LO" | CoreName == "HO" | CoreName == "MM")
 
-#Creating model grouping by Season and checking normal distribution of RESIDUALS and heterosked
-main.model <- lm(avg.chl ~ Season, data = chl.main.avgs)
-main.res <- residuals(main.model)
-qqnorm(residuals(main.model))
-qqline(residuals(main.model))
+#Summer 2015 has a compelling decrease from the youngest to oldest site, but it's probably not much ITO results, because summer 2014 does nearly the opposite...
+ggplot(chl.summer, aes(Season, avg.chl, fill = Site)) +
+  geom_bar(stat = "identity", position = "dodge")
 
-#Passes normality OF RESIDUALS, passes heterosked grouped by CoreName, fails heterosked grouped by Season
-#Using Levene Test because I've since read that it's preferred
-shapiro.test(main.res)
-leveneTest(avg.chl ~ Season, data = chl.main.avgs)
-leveneTest(avg.chl ~ CoreName, data = chl.main.avgs)
+#No systematic differences that would point to anything interesting going on in one season vs another. 
+chl.summer %>%
+  ggplot(aes(Season, avg.chl, fill = CoreName)) +
+  facet_grid(Site ~ .) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  geom_errorbar(aes(group = CoreName, ymin = avg.chl - SE, ymax = avg.chl + SE),
+                width = 0.2, position = position_dodge(width = 0.9))
 
-plot(avg.chl ~ Season, data = chl.main.avgs)
-plot(chl.main.avgs$Season, main.res, ylab = "Residuals", xlab = "Season")
-plot(main.model$fitted.values, main.res, ylab = "Residuals", xlab = "Predicted")
-
-
-#Create model grouping by Season and CoreName (proxy for elevation) -- This is a more realistic way to examine the data altho the "elevations" could be collapsed into habitats in future.
-mainmod2 <- lm(avg.chl ~ Season + CoreName, data = chl.main.avgs)
-main2res <- residuals(mainmod2)
-qqnorm(main2res)
-qqline(main2res)
-
-#Checking for normality OF RESIDUALS (passes)
-#Heterosked passes when looking at Season & Core Name as multiple independent variables... not sure what this means??
-shapiro.test(main2res)
-leveneTest(avg.chl ~ Season * CoreName, data = chl.main.avgs)
-
-#Visualizing boxplots of chl grouped by CoreName & color-coded by Season (can swap)
-chl.main.avgs %>%
-  ggplot(aes(CoreName, avg.chl, colour = Season)) +
-  geom_boxplot()
-
-#ANOVA indicates that, when run as independent variables, only Season is significant
-anova2 <- aov(avg.chl ~ Season + CoreName, data = chl.main.avgs)
-summary(anova2)
-TukeyHSD(anova2)
-
-
-#Attempting the same process using Season & Habitat, mostly out of curiosity (this is probably not a statistically-sound way to go about looking for significance).
-
-#First using my function to add a habitat column to the averaged core data.
-chl.main.habitat <- add.habitat(chl.main.avgs)
-chl.main.habitat$Habitat <- factor(chl.main.habitat$Habitat, levels = c("oyster", "marsh", "Ref"))
-
-#Creating the linear model and visualizing a QQ plot
-hab.model <- lm(avg.chl ~ Season * Habitat, data = chl.main.habitat)
-hab.res <- residuals(hab.model)
-qqnorm(hab.res)
-qqline(hab.res)
-
-#Passes both normality OF RESIDUALS and heterosked
-shapiro.test(hab.res)
-leveneTest(avg.chl ~ Season * Habitat, data = chl.main.habitat)
-
-#ANOVA indicates sig diff only for Season
-hab.anova <- aov(avg.chl ~ Season + Habitat, data = chl.main.habitat)
-summary(hab.anova)
-TukeyHSD(hab.anova)
-
-
-#Exploring assumptions with all the replicates thrown in but excluding Summer 2015. This will probably not be the way to go, b/c chl is so variable that the replicates aren't true replicates.
-reps.noS15 <- filter(chl.basic, !Season == "Summer15")
-
-reps.model <- lm(chla_conc ~ Season + CoreName, data = reps.noS15)
-qqnorm(residuals(reps.model))
-qqline(residuals(reps.model))
-shapiro.test(residuals(reps.model))
-
-#### OLD CODE for assumption testing HIDDEN ####
-
-#Checking all data first: Fails Bartlett test for Core Name, Site, Season; passes for Habitat
-bartlett.test(chla_conc ~ CoreName, data = chl.all)
-bartlett.test(chla_conc ~ Site, data = chl.all)
-bartlett.test(chla_conc ~ Season, data = chl.all)
-bartlett.test(chla_conc ~ Habitat, data = chl.all)
-leveneTest(chla_conc ~ CoreName, data = chl.all)
-
-bartlett.test(avg.chl ~ CoreName, data = chl.all.avg)
-leveneTest(avg.chl ~ Site, data = chl.all.avg)
-
-#Checking basic data: Fails Bartlett for all
-bartlett.test(chla_conc ~ CoreName, data = chl.basic)
-bartlett.test(chla_conc ~ Site, data = chl.basic)
-bartlett.test(chla_conc ~ Season, data = chl.basic)
-bartlett.test(chla_conc ~ Habitat, data = chl.basic)
-
-#Modify below code to explore histograms for data sets, including and excluding Lo & Hi Ref
-#Also interesting to explore phaeo conc and chl:phaeo ratio w histograms
-#Habitat, Site, & Season look ok, CoreName is pretty spread out
-chl.all %>%
-  ggplot(aes(chla_conc)) +
-  geom_histogram(stat = "bin", binwidth = 10) +
-  facet_grid(CoreName ~ .)
-
-chl.basic %>%
-  ggplot(aes(phaeo_conc)) +
-  geom_histogram(stat = "bin", binwidth = 10) +
-  facet_grid(Site ~ .)
-
-test.norm.all.CoreName <- chl.all %>%
-  group_by(CoreName) %>%
-  summarise(SW.pvalue = shapiro.test(chla_conc)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue > 0.05, "Normal", "Non-Normal"))
-
-test.norm.basic.CoreName <- chl.basic %>%
-  group_by(CoreName) %>%
-  summarise(SW.pvalue = shapiro.test(chla_conc)$p.value) %>%
-  mutate(Result = ifelse(SW.pvalue > 0.5, "Normal", "Non-Normal"))
-
-
-all.trans <- ddply(chl.all, c("Season", "Site", "CoreName", "CoreNo", "Habitat"), summarise,
-                   sq_trans = chla_conc ^ 2,
-                   sqrt_trans = chla_conc ^ (1/2),
-                   ln_trans = log(chla_conc))
-
-bartlett.test(sqrt_trans ~ Season, all.trans)
-leveneTest(sqrt_trans ~ Season, all.trans)
-
-chl.all.avg %>%
-  ggplot(aes(avg.chl)) +
-  geom_histogram(stat = "bin", binwidth = 10) +
-  facet_grid(Site ~ .)
-
-all.fit <- lm(chla_conc ~ CoreName, data = chl.all)
-
-chl.all$resids <- residuals(all.fit)
-chl.all$preds <- predict(all.fit)
-plot(resids ~ preds, data = chl.all, xlab = "Predicted Values", ylab = "Residuals")
-shapiro.test(chl.all$resids)
-
-
-log.fit <- lm(ln_trans ~ CoreName + Season, data = all.trans)
-
-all.trans$resids <- residuals(log.fit)
-all.trans$preds <- predict(log.fit)
-plot(resids ~ preds, data = all.trans, xlab = "Predicted Values", ylab = "Residuals")
-shapiro.test(all.trans$resids)
-leveneTest(ln_trans ~ CoreName, data = all.trans)
-leveneTest(ln_trans ~ Season, data = all.trans)
-qqnorm(all.trans$resids)
-qqline(all.trans$resids)
-plot(all.trans$resids)
-abline(0,0)
-hist(all.trans$resids)
-
-all.res <- resid(all.lm)
-plot(all.res)
-abline(0, 0)
-qqnorm(resid(all.lm))
-qqline(resid(all.lm))
-
-fit1 <- lm(chla_conc ~ Season + CoreName, data = chl.all)
-
-
-par(mfrow = c(2, 4))
-
-hist(resid(fit1))
-hist(resid(fit2))
-hist(resid(fit3))
-hist(resid(fit4))
-
-qqnorm(resid(fit1))
-qqline(resid(fit1))
-qqnorm(resid(fit2))
-qqline(resid(fit2))
-qqnorm(resid(fit3))
-qqline(resid(fit3))
-qqnorm(resid(fit4))
-qqline(resid(fit4))
-
-par(mfrow = c(1,1))
-
+  
 
 ```
-
